@@ -15,7 +15,7 @@ async def _run_claude ( prompt: str, session_id: str | None, cwd: str ) -> tuple
     options = ClaudeAgentOptions(
         cwd=cwd,
         resume=session_id,
-        permission_mode="acceptEdits",
+        permission_mode="bypassPermissions",
     )
 
     parts: list[str] = []
