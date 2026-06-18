@@ -4,68 +4,84 @@ import asyncio
 import json
 import subprocess
 
+def tool_of ( agent: str ) -> str:
 
-def tool_of(agent: str) -> str:
     return agent.rsplit("_", 1)[0]
 
+async def _run_claude ( prompt: str, session_id: str | None, cwd: str ) -> tuple[str, str]:
 
-async def _run_claude(prompt: str, session_id: str | None, cwd: str) -> tuple[str, str]:
-    # NOTE: align option/field names with your installed claude-agent-sdk version.
     from claude_agent_sdk import ClaudeAgentOptions, query
 
     options = ClaudeAgentOptions(
         cwd=cwd,
-        resume=session_id,            # None -> fresh session
+        resume=session_id,
         permission_mode="acceptEdits",
     )
 
-    text: list[str] = []
-    sid = session_id or ""
+    parts: list[str] = []
+    session = session_id or ""
 
     async for message in query(prompt=prompt, options=options):
-        got = getattr(message, "session_id", None)
-        if got:
-            sid = got
+
+        current = getattr(message, "session_id", None)
+
+        if current:
+            session = current
+
         content = getattr(message, "content", None)
+
         if isinstance(content, str):
-            text.append(content)
+            parts.append(content)
+
         elif isinstance(content, list):
+
             for block in content:
-                t = getattr(block, "text", None)
-                if t:
-                    text.append(t)
 
-    return "".join(text), sid
+                text = getattr(block, "text", None)
 
+                if text:
+                    parts.append(text)
 
-def run_claude(prompt: str, session_id: str | None, cwd: str) -> tuple[str, str]:
+    return "".join(parts), session
+
+def run_claude ( prompt: str, session_id: str | None, cwd: str ) -> tuple[str, str]:
+
     return asyncio.run(_run_claude(prompt, session_id, cwd))
 
+def run_codex ( prompt: str, session_id: str | None, cwd: str ) -> tuple[str, str]:
 
-def run_codex(prompt: str, session_id: str | None, cwd: str) -> tuple[str, str]:
     if session_id:
-        cmd = ["codex", "exec", "resume", session_id, "--json", "--cd", cwd, prompt]
+        command = ["codex", "exec", "resume", session_id, "--json", prompt]
     else:
-        cmd = ["codex", "exec", "--json", "--cd", cwd, prompt]
+        command = ["codex", "exec", "--json", prompt]
 
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(command, cwd=cwd, capture_output=True, text=True)
 
-    text: list[str] = []
-    sid = session_id or ""
+    parts: list[str] = []
+    session = session_id or ""
 
-    for line in proc.stdout.splitlines():
+    for line in result.stdout.splitlines():
+
         try:
             event = json.loads(line)
         except ValueError:
             continue
-        sid = event.get("session_id", sid)
-        if event.get("type") in ("message", "assistant", "agent_message"):
-            text.append(str(event.get("text") or event.get("content") or ""))
 
-    return "\n".join(text), sid
+        if event.get("type") == "thread.started":
+            session = event.get("thread_id", session)
 
+        if event.get("type") == "item.completed":
 
-def run_worker(agent: str, prompt: str, session_id: str | None, cwd: str) -> tuple[str, str]:
+            item = event.get("item", {})
+
+            if item.get("type") == "agent_message":
+                parts.append(str(item.get("text", "")))
+
+    return "\n".join(parts), session
+
+def run_worker ( agent: str, prompt: str, session_id: str | None, cwd: str ) -> tuple[str, str]:
+
     if tool_of(agent) == "codex":
         return run_codex(prompt, session_id, cwd)
+
     return run_claude(prompt, session_id, cwd)

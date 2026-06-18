@@ -1,4 +1,4 @@
-# orchestrator
+# ✨ Agentx
 
 Hierarchical multi-agent orchestrator.
 

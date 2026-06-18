@@ -4,42 +4,91 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-ROOT = Path(os.environ.get("AGENTS_ROOT", "agents"))
-
-
 @dataclass(frozen=True)
 class Paths:
-    root: Path = ROOT
-    overview: Path = ROOT / "overview.md"
-    contracts: Path = ROOT / "contracts"
-    requires: Path = ROOT / "requires"
-    tasks: Path = ROOT / "tasks"
-    decisions: Path = ROOT / "decisions"
-    reports_requires: Path = ROOT / "reports" / "requires"
-    reports_tasks: Path = ROOT / "reports" / "tasks"
-    history_requires: Path = ROOT / "history" / "requires"
-    history_tasks: Path = ROOT / "history" / "tasks"
-    history_reports: Path = ROOT / "history" / "reports"
 
+    root: Path
+    overview: Path
+    contracts: Path
+    requires: Path
+    tasks: Path
+    decisions: Path
+    review: Path
+    control: Path
+    gate_log: Path
+    reports_requires: Path
+    reports_tasks: Path
+    history_requires: Path
+    history_tasks: Path
+    history_reports: Path
 
-PATHS = Paths()
+@dataclass(frozen=True)
+class Config:
 
-MANAGER = os.environ.get("MANAGER", "claude")
-ARCHITECTS = os.environ.get("ARCHITECTS", "claude:2,codex:1")
-EXECUTORS = os.environ.get("EXECUTORS", "claude:2,codex:1")
+    manager: str
+    architects: list[str]
+    executors: list[str]
+    phases: list[str]
+    gate_cmd: str
+    max_rounds: int
+    paths: Paths
 
-GATE_CMD = os.environ.get("GATE_CMD", "")
-MAX_STEPS = int(os.environ.get("MAX_STEPS", "0"))
-CHECKPOINT_DB = os.environ.get("CHECKPOINT_DB", ".orchestrator/checkpoint.sqlite")
+def _paths ( root: Path ) -> Paths:
 
-CWD = str(Path.cwd())
+    return Paths(
+        root=root,
+        overview=root / "overview.md",
+        contracts=root / "contracts",
+        requires=root / "requires",
+        tasks=root / "tasks",
+        decisions=root / "decisions",
+        review=root / "review.md",
+        control=root / "control.md",
+        gate_log=root / "gate.log",
+        reports_requires=root / "reports" / "requires",
+        reports_tasks=root / "reports" / "tasks",
+        history_requires=root / "history" / "requires",
+        history_tasks=root / "history" / "tasks",
+        history_reports=root / "history" / "reports",
+    )
 
+def _roster ( spec: str ) -> list[str]:
 
-def expand_roster(spec: str) -> list[str]:
-    # "claude:2,codex:1" -> ["claude_1", "claude_2", "codex_1"]
-    out: list[str] = []
-    for part in (p.strip() for p in spec.split(",") if p.strip()):
-        base, _, n = part.partition(":")
-        count = int(n) if n else 1
-        out.extend(f"{base}_{i}" for i in range(1, count + 1))
-    return out
+    roster: list[str] = []
+    seen: dict[str, int] = {}
+
+    for part in ( token.strip() for token in spec.split(",") if token.strip() ):
+
+        seen[part] = seen.get(part, 0) + 1
+        roster.append(f"{part}_{seen[part]}")
+
+    return roster
+
+def _pick ( flag: str | None, env_key: str, fallback: str ) -> str:
+
+    if flag is not None:
+        return flag
+
+    return os.environ.get(env_key, fallback)
+
+def build_config ( archs: str | None, execs: str | None, phase: str | None, root: str | None ) -> Config:
+
+    base = Path(_pick(root, "AGENTS_ROOT", "agents"))
+
+    manager = os.environ.get("MANAGER", "claude")
+    architects = _roster(_pick(archs, "ARCHITECTS", "claude,codex,claude"))
+    executors = _roster(_pick(execs, "EXECUTORS", "claude,codex,claude,codex,claude"))
+    phases = [p.strip() for p in _pick(phase, "PHASES", "").split(",") if p.strip()]
+
+    gate_cmd = os.environ.get("GATE_CMD", "")
+    max_rounds = int(os.environ.get("MAX_ROUNDS", "5"))
+
+    return Config(
+        manager=manager,
+        architects=architects,
+        executors=executors,
+        phases=phases,
+        gate_cmd=gate_cmd,
+        max_rounds=max_rounds,
+        paths=_paths(base),
+    )
