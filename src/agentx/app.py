@@ -1,77 +1,154 @@
 from __future__ import annotations
+import os, shutil, signal
+from pathlib import Path
+from .config import CACHE_DIR, DEFAULT_TOML, STEPS, Config, layout
+from .discovery import discover, resolve_root
+from .io_files import read_pid, remove, request_drain, write_pid
+from .runner import DrainSignal, Orchestrator
+from .spec import load_spec
 
-from .config import Config
-from .io_files import sorted_md
-from .runner import Orchestrator
+def assemble ( root: Path ) -> Config:
 
-def _ensure_tree ( config: Config ) -> None:
+    paths = layout(root)
+    spec = load_spec(paths.config_file)
+    context = discover(paths)
 
-    paths = config.paths
+    return Config(root=root, spec=spec, paths=paths, context=context)
 
-    targets = (
-        paths.contracts, paths.requires, paths.tasks, paths.decisions,
-        paths.reports_requires, paths.reports_tasks,
-        paths.history_requires, paths.history_tasks,
-        paths.history_reports / "requires", paths.history_reports / "tasks",
+def scaffold ( root: Path ) -> None:
+
+    paths = layout(root)
+
+    for directory in ( paths.contracts, paths.history, paths.tasks, paths.requires ):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    if not paths.overview.exists():
+        paths.overview.write_text("", encoding="utf-8")
+
+    cache_dirs = (
+        paths.reports_of("arch"), paths.reports_of("work"), paths.reports_of("test"),
+        paths.rounds_of("arch"), paths.rounds_of("work"), paths.rounds_of("test"),
+        paths.tests, paths.probes, paths.prompts, paths.runs,
     )
 
-    for path in targets:
-        path.mkdir(parents=True, exist_ok=True)
+    for directory in cache_dirs:
+        directory.mkdir(parents=True, exist_ok=True)
 
-def _resolve_phases ( config: Config ) -> list[str]:
+    if not paths.gitignore.exists():
+        paths.gitignore.write_text("*\n", encoding="utf-8")
 
-    if config.phases:
-        return config.phases
+    if not paths.config_file.exists():
+        paths.config_file.write_text(DEFAULT_TOML, encoding="utf-8")
 
-    paths = config.paths
-    has_requires = bool(sorted_md(paths.requires))
-    has_tasks = bool(sorted_md(paths.tasks))
+def _resolve_steps ( config: Config ) -> list[str]:
 
-    if has_tasks and not has_requires:
-        return ["exec"]
+    steps = config.spec.steps
+    has_requires = bool(config.context.requires)
+    has_tasks = bool(config.context.tasks)
 
-    if has_requires:
-        return ["arch", "exec"]
+    if not has_requires and not has_tasks:
+        return []
 
-    if has_tasks:
-        return ["exec"]
+    run: list[str] = []
 
-    return []
+    if has_requires and "arch" in steps:
+        run.append("arch")
+
+    if "work" in steps:
+        run.append("work")
+
+    if "test" in steps:
+        run.append("test")
+
+    return [step for step in STEPS if step in run]
 
 def run_cycle ( config: Config, cwd: str ) -> None:
 
-    _ensure_tree(config)
-
-    paths = config.paths
-
-    if not paths.overview.exists():
-        raise SystemExit(f"missing {paths.overview}")
-
-    if not any(paths.contracts.glob("*.md")):
-        raise SystemExit(f"missing contracts in {paths.contracts}")
-
-    phases = _resolve_phases(config)
-
-    if not phases:
-        raise SystemExit("nothing to do: no requirements and no tasks")
-
     orchestrator = Orchestrator(config, cwd)
+
+    steps = _resolve_steps(config)
+
+    if not steps:
+        raise SystemExit("nothing to do: add a requirement under agents/requires/ or a task under agents/tasks/")
+
     orchestrator.brief_manager()
 
-    if "arch" in phases:
-        print("[agentx] phase: architecture")
-        orchestrator.run_phase("arch")
+    try:
 
-    if "exec" in phases:
+        for step in steps:
 
-        if not sorted_md(paths.tasks):
-            raise SystemExit("no tasks to execute")
+            print(f"[agentx] step: {step}")
+            orchestrator.run_phase(step)
 
-        print("[agentx] phase: execution")
-        orchestrator.run_phase("exec")
+        print("[agentx] writing decision record")
+        orchestrator.write_decision()
 
-    print("[agentx] writing decision record")
-    orchestrator.write_decision()
+        orchestrator.archive_run()
 
-    orchestrator.archive_run()
-    print("[agentx] cycle finished")
+    except DrainSignal:
+        print("[agentx] drained - stopped after the current turn, state left intact for inspection or resume")
+        return
+
+    if orchestrator.blocked:
+        joined = ", ".join(orchestrator.blocked)
+        print(f"[agentx] CYCLE FINISHED WITH OPEN ISSUES in: {joined} - review the decision record before shipping")
+        return
+
+    print("[agentx] cycle finished clean")
+
+def do_init ( cwd: Path ) -> None:
+
+    scaffold(cwd)
+    print(f"[agentx] initialised at {cwd}")
+
+def do_start ( cwd: Path ) -> None:
+
+    root = resolve_root(cwd)
+    scaffold(root)
+
+    config = assemble(root)
+    paths = config.paths
+
+    os.setpgrp()
+    write_pid(paths.pid)
+
+    try:
+        run_cycle(config, str(root))
+
+    finally:
+        remove(paths.pid, paths.drain)
+
+def do_stop ( cwd: Path ) -> None:
+
+    root = resolve_root(cwd)
+    paths = layout(root)
+    pid = read_pid(paths.pid)
+
+    if pid is None:
+        print("[agentx] no running cycle found")
+        return
+
+    try:
+        os.killpg(pid, signal.SIGTERM)
+        print(f"[agentx] stopped run {pid} immediately")
+
+    except ProcessLookupError:
+        print("[agentx] no live process for the recorded run")
+
+    remove(paths.pid)
+
+def do_drain ( cwd: Path ) -> None:
+
+    root = resolve_root(cwd)
+    paths = layout(root)
+
+    request_drain(paths.drain)
+    print("[agentx] drain requested - the run will stop cleanly after the current turn")
+
+def do_clean ( cwd: Path ) -> None:
+
+    root = resolve_root(cwd)
+    cache = root / CACHE_DIR
+
+    shutil.rmtree(cache, ignore_errors=True)
+    print(f"[agentx] removed {cache}")

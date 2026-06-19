@@ -1,10 +1,7 @@
 from __future__ import annotations
+import asyncio, json, subprocess
 
-import asyncio
-import json
-import subprocess
-
-def tool_of ( agent: str ) -> str:
+def model_of ( agent: str ) -> str:
 
     return agent.rsplit("_", 1)[0]
 
@@ -52,6 +49,7 @@ def run_codex ( prompt: str, session_id: str | None, cwd: str ) -> tuple[str, st
 
     if session_id:
         command = ["codex", "exec", "resume", session_id, "--json", prompt]
+
     else:
         command = ["codex", "exec", "--json", prompt]
 
@@ -64,6 +62,7 @@ def run_codex ( prompt: str, session_id: str | None, cwd: str ) -> tuple[str, st
 
         try:
             event = json.loads(line)
+
         except ValueError:
             continue
 
@@ -79,9 +78,25 @@ def run_codex ( prompt: str, session_id: str | None, cwd: str ) -> tuple[str, st
 
     return "\n".join(parts), session
 
+RUNNERS = {
+    "claude" : run_claude,
+    "codex"  : run_codex,
+}
+
+def _runner_for ( model: str ):
+
+    if model in RUNNERS:
+        return RUNNERS[model]
+
+    for name, runner in RUNNERS.items():
+
+        if model.startswith(name):
+            return runner
+
+    return run_claude
+
 def run_worker ( agent: str, prompt: str, session_id: str | None, cwd: str ) -> tuple[str, str]:
 
-    if tool_of(agent) == "codex":
-        return run_codex(prompt, session_id, cwd)
+    runner = _runner_for(model_of(agent))
 
-    return run_claude(prompt, session_id, cwd)
+    return runner(prompt, session_id, cwd)

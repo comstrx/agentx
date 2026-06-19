@@ -1,8 +1,5 @@
 from __future__ import annotations
-
-import re
-import shutil
-import datetime as dt
+import os, re, shutil, datetime as dt
 from pathlib import Path
 
 def sorted_md ( directory: Path ) -> list[Path]:
@@ -33,7 +30,9 @@ def parse_control ( control: Path ) -> tuple[str, str]:
 
     return action, note
 
-def all_shipped ( directory: Path, agents: list[str] ) -> bool:
+def all_shipped ( directory: Path, agents: list[str], token: str ) -> bool:
+
+    needle = re.compile(rf"\s*{re.escape(token)}\s*", re.I)
 
     for agent in agents:
 
@@ -44,7 +43,7 @@ def all_shipped ( directory: Path, agents: list[str] ) -> bool:
 
         lines = [line for line in report.read_text(encoding="utf-8").splitlines() if line.strip()]
 
-        if not lines or not re.fullmatch(r"\s*ship\s+it\s*", lines[-1].lower()):
+        if not lines or not needle.fullmatch(lines[-1].lower()):
             return False
 
     return True
@@ -54,7 +53,7 @@ def snap_seq ( directory: Path ) -> str:
     directory.mkdir(parents=True, exist_ok=True)
     highest = 0
 
-    for path in directory.glob("*.md"):
+    for path in directory.iterdir():
 
         matched = re.match(r"^(\d+)", path.name)
 
@@ -69,7 +68,7 @@ def next_stamp ( directory: Path ) -> str:
     day = dt.date.today().isoformat()
     highest = 0
 
-    for path in directory.glob(f"{day}-*.md"):
+    for path in directory.glob(f"{day}-*"):
 
         matched = re.match(rf"^{day}-(\d+)", path.name)
 
@@ -78,33 +77,117 @@ def next_stamp ( directory: Path ) -> str:
 
     return f"{day}-{highest + 1:04d}"
 
-def strip_prefix ( name: str ) -> str:
-
-    return re.sub(r"^\d+-", "", name)
-
-def snapshot_one ( report: Path, history_dir: Path ) -> None:
+def snapshot_one ( report: Path, rounds_dir: Path ) -> None:
 
     if not report.exists():
         return
 
-    history_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(report, history_dir / f"{snap_seq(history_dir)}-{report.name}")
+    rounds_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy(report, rounds_dir / f"{snap_seq(rounds_dir)}-{report.name}")
 
-def clear_files ( *dirs: Path ) -> None:
+def dump_prompt ( prompts_dir: Path, label: str, prompt: str ) -> None:
+
+    prompts_dir.mkdir(parents=True, exist_ok=True)
+    target = prompts_dir / f"{snap_seq(prompts_dir)}-{label}.md"
+    target.write_text(prompt, encoding="utf-8")
+
+def clear_all ( *dirs: Path ) -> None:
 
     for directory in dirs:
 
         if not directory.exists():
             continue
 
-        for path in directory.glob("*.md"):
-            path.unlink()
+        for path in directory.iterdir():
 
-def archive ( sources: list[Path], history_dir: Path ) -> None:
+            if path.is_file():
+                path.unlink()
 
-    history_dir.mkdir(parents=True, exist_ok=True)
+            elif path.is_dir():
+                shutil.rmtree(path)
 
-    for source in sources:
+def make_run_dir ( runs: Path ) -> Path:
 
-        name = strip_prefix(source.name)
-        source.rename(history_dir / f"{next_stamp(history_dir)}-{name}")
+    run = runs / next_stamp(runs)
+    run.mkdir(parents=True, exist_ok=True)
+
+    return run
+
+def harvest ( source: Path, run_dir: Path, label: str ) -> None:
+
+    if not source.exists():
+        return
+
+    entries = [path for path in source.iterdir()]
+
+    if not entries:
+        return
+
+    target = run_dir / label
+    target.mkdir(parents=True, exist_ok=True)
+
+    for path in entries:
+
+        if path.is_file():
+            shutil.copy(path, target / path.name)
+
+        else:
+            shutil.copytree(path, target / path.name, dirs_exist_ok=True)
+
+def harvest_file ( source: Path, run_dir: Path ) -> None:
+
+    if source.exists():
+        shutil.copy(source, run_dir / source.name)
+
+def relative ( paths: list[Path], root: Path ) -> list[str]:
+
+    rendered: list[str] = []
+
+    for path in paths:
+
+        try:
+            rendered.append(str(path.relative_to(root)))
+
+        except ValueError:
+            rendered.append(str(path))
+
+    return rendered
+
+def task_snapshot ( tasks_dir: Path ) -> set[str]:
+
+    if not tasks_dir.is_dir():
+        return set()
+
+    return { path.name for path in tasks_dir.glob("*.md") if path.is_file() }
+
+def write_pid ( pid_file: Path ) -> None:
+
+    pid_file.parent.mkdir(parents=True, exist_ok=True)
+    pid_file.write_text(str(os.getpid()), encoding="utf-8")
+
+def read_pid ( pid_file: Path ) -> int | None:
+
+    if not pid_file.is_file():
+        return None
+
+    try:
+        return int(pid_file.read_text(encoding="utf-8").strip())
+
+    except ValueError:
+        return None
+
+def request_drain ( drain_file: Path ) -> None:
+
+    drain_file.parent.mkdir(parents=True, exist_ok=True)
+    drain_file.write_text("true\n", encoding="utf-8")
+
+def drain_requested ( drain_file: Path ) -> bool:
+
+    return drain_file.exists()
+
+def remove ( *targets: Path ) -> None:
+
+    for target in targets:
+
+        if target.exists():
+            target.unlink()

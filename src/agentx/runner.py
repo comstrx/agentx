@@ -1,10 +1,14 @@
 from __future__ import annotations
-
-from .config import Config
+from . import compose
+from .config import CONVERGENCE, Config
 from .gate import run_gate
-from .io_files import all_shipped, archive, clear_files, next_stamp, parse_control, snapshot_one, sorted_md
-from .prompts import arch_prompt, exec_prompt, manager_decision, manager_init, manager_review
+from .io_files import all_shipped, drain_requested, dump_prompt, harvest, harvest_file
+from .io_files import make_run_dir, next_stamp, parse_control, snapshot_one, task_snapshot
 from .workers import run_worker
+
+class DrainSignal ( Exception ):
+
+    pass
 
 class Orchestrator:
 
@@ -14,109 +18,156 @@ class Orchestrator:
         self.cwd = cwd
         self.sessions: dict[str, str] = {}
         self.primed: set[str] = set()
+        self.blocked: list[str] = []
+        self.frozen = sorted(task_snapshot(config.paths.tasks))
 
-    def _call ( self, agent: str, prompt: str ) -> str:
+    def _check_drain ( self ) -> None:
 
-        session = self.sessions.get(agent)
+        if drain_requested(self.cfg.paths.drain):
+            raise DrainSignal()
+
+    def _call ( self, key: str, agent: str, prompt: str ) -> str:
+
+        dump_prompt(self.cfg.paths.prompts, key, prompt)
+
+        session = self.sessions.get(key)
         text, session = run_worker(agent, prompt, session, self.cwd)
-        self.sessions[agent] = session
+        self.sessions[key] = session
 
         return text
 
-    def _worker_turn ( self, agent: str, prompt: str, reports_dir, history_dir ) -> None:
+    def _worker_turn ( self, step: str, agent: str, prompt: str ) -> None:
 
-        self._call(agent, prompt)
-        snapshot_one(reports_dir / f"{agent}.md", history_dir)
+        self._call(f"{step}-{agent}", agent, prompt)
+        snapshot_one(self.cfg.paths.reports_of(step) / f"{agent}.md", self.cfg.paths.rounds_of(step))
+        self._check_drain()
+
+    def _is_init ( self, step: str, agent: str ) -> bool:
+
+        key = f"{step}-{agent}"
+        init = key not in self.primed
+        self.primed.add(key)
+
+        return init
+
+    def _shipped ( self, step: str ) -> bool:
+
+        return all_shipped(self.cfg.paths.reports_of(step), self.cfg.spec.roster(step), CONVERGENCE)
 
     def brief_manager ( self ) -> None:
 
-        self._call(self.cfg.manager, manager_init())
+        self._call("manager", self.cfg.manager(), compose.manager_brief(self.cfg))
 
-    def run_arch_workers ( self, has_review: bool ) -> None:
+    def run_arch ( self, has_review: bool ) -> bool:
 
         paths = self.cfg.paths
         rounds = 0
 
-        while rounds < self.cfg.max_rounds:
+        while rounds < self.cfg.spec.max_rounds:
 
             rounds += 1
             review = has_review and rounds == 1
 
-            for agent in self.cfg.architects:
+            for agent in self.cfg.spec.roster("arch"):
 
-                init = agent not in self.primed
-                self.primed.add(agent)
+                init = self._is_init("arch", agent)
+                critique = any(paths.reports_of("arch").glob("*.md"))
+                prompt = compose.architect(self.cfg, agent, init, critique, review, self.frozen)
 
-                self._worker_turn(agent, arch_prompt(agent, init, review), paths.reports_requires, paths.history_reports / "requires")
+                self._worker_turn("arch", agent, prompt)
 
-            if all_shipped(paths.reports_requires, self.cfg.architects):
-                return
+            if self._shipped("arch"):
+                return True
 
-    def run_exec_workers ( self, has_review: bool ) -> None:
+        return self._shipped("arch")
+
+    def run_work ( self, has_review: bool ) -> bool:
 
         paths = self.cfg.paths
         rounds = 0
         gate_ok = True
 
-        while rounds < self.cfg.max_rounds:
+        while rounds < self.cfg.spec.max_rounds:
 
             rounds += 1
             review = has_review and rounds == 1
 
-            for agent in self.cfg.executors:
+            for agent in self.cfg.spec.roster("work"):
 
-                init = agent not in self.primed
-                self.primed.add(agent)
+                init = self._is_init("work", agent)
+                prompt = compose.executor(self.cfg, agent, init, not gate_ok, review)
 
-                self._worker_turn(agent, exec_prompt(agent, init, not gate_ok, review), paths.reports_tasks, paths.history_reports / "tasks")
-                gate_ok, _ = run_gate(self.cfg.gate_cmd, self.cwd, paths.gate_log)
+                self._worker_turn("work", agent, prompt)
+                gate_ok, _ = run_gate(self.cfg.spec.gate_cmd, self.cwd, paths.gate_log)
 
                 fixes = 0
 
-                while not gate_ok and fixes < self.cfg.max_rounds:
+                while not gate_ok and fixes < self.cfg.spec.max_fixes:
 
                     fixes += 1
+                    prompt = compose.executor(self.cfg, agent, False, True, False)
 
-                    self._worker_turn(agent, exec_prompt(agent, False, True, False), paths.reports_tasks, paths.history_reports / "tasks")
-                    gate_ok, _ = run_gate(self.cfg.gate_cmd, self.cwd, paths.gate_log)
+                    self._worker_turn("work", agent, prompt)
+                    gate_ok, _ = run_gate(self.cfg.spec.gate_cmd, self.cwd, paths.gate_log)
 
-            if gate_ok and all_shipped(paths.reports_tasks, self.cfg.executors):
-                return
+            if gate_ok and self._shipped("work"):
+                return True
 
-    def _critic_loop ( self, mode: str, run_workers ) -> None:
+        return gate_ok and self._shipped("work")
 
-        paths = self.cfg.paths
+    def run_test ( self, has_review: bool ) -> bool:
+
         rounds = 0
 
-        while True:
+        while rounds < self.cfg.spec.max_rounds:
 
             rounds += 1
+            review = has_review and rounds == 1
 
-            self._call(self.cfg.manager, manager_review(mode, rounds, self.cfg.max_rounds))
-            action, _ = parse_control(paths.control)
+            for agent in self.cfg.spec.roster("test"):
 
-            if action == "ship":
-                return
+                init = self._is_init("test", agent)
+                prompt = compose.verifier(self.cfg, agent, init, review)
 
-            if rounds >= self.cfg.max_rounds:
-                print(f"[agentx] {mode}: max_rounds reached, accepting as-is")
-                return
+                self._worker_turn("test", agent, prompt)
 
-            run_workers(has_review=True)
+            if self._shipped("test"):
+                return True
 
-    def run_phase ( self, mode: str ) -> None:
+        return self._shipped("test")
+
+    def run_phase ( self, step: str ) -> None:
 
         paths = self.cfg.paths
+        runners = {"arch": self.run_arch, "work": self.run_work, "test": self.run_test}
+        run_workers = runners[step]
 
         if paths.review.exists():
             paths.review.unlink()
 
-        if mode == "arch":
-            self.run_arch_workers(has_review=False)
-            self._critic_loop("arch", self.run_arch_workers)
-        else:
-            self.run_exec_workers(has_review=False)
-            self._critic_loop("exec", self.run_exec_workers)
+        converged = run_workers(False)
+        rounds = 0
+
+        while True:
+
+            self._call("manager", self.cfg.manager(), compose.manager_review(self.cfg, step, rounds + 1))
+            self._check_drain()
+            action, _ = parse_control(paths.control)
+
+            if action == "ship":
+                break
+
+            rounds += 1
+
+            if rounds >= self.cfg.spec.max_rounds:
+                print(f"[agentx] {step}: max_rounds reached")
+                break
+
+            converged = run_workers(True)
+
+        if not converged:
+            self.blocked.append(step)
+            print(f"[agentx] {step}: NOT converged - open issues recorded")
 
         if paths.review.exists():
             paths.review.unlink()
@@ -124,21 +175,23 @@ class Orchestrator:
     def write_decision ( self ) -> None:
 
         paths = self.cfg.paths
-        decision = paths.decisions / f"{next_stamp(paths.decisions)}.md"
+        paths.history.mkdir(parents=True, exist_ok=True)
+        decision = paths.history / f"{next_stamp(paths.history)}.md"
 
-        self._call(self.cfg.manager, manager_decision(str(decision)))
+        self._call("manager", self.cfg.manager(), compose.manager_decision(self.cfg, decision))
 
     def archive_run ( self ) -> None:
 
         paths = self.cfg.paths
+        run_dir = make_run_dir(paths.runs)
 
-        archive(sorted_md(paths.requires), paths.history_requires)
-        archive(sorted_md(paths.tasks), paths.history_tasks)
+        harvest(paths.requires, run_dir, "requires")
+        harvest(paths.tasks, run_dir, "tasks")
+        harvest(paths.reports, run_dir, "reports")
+        harvest(paths.rounds, run_dir, "rounds")
+        harvest(paths.tests, run_dir, "tests")
+        harvest(paths.probes, run_dir, "probes")
+        harvest(paths.prompts, run_dir, "prompts")
 
-        clear_files(paths.reports_requires, paths.reports_tasks)
-        clear_files(paths.history_reports / "requires", paths.history_reports / "tasks")
-
-        for extra in ( paths.review, paths.control, paths.gate_log ):
-
-            if extra.exists():
-                extra.unlink()
+        for single in ( paths.review, paths.control, paths.gate_log ):
+            harvest_file(single, run_dir)

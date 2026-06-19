@@ -1,0 +1,9 @@
+[project]
+max_rounds    = 5
+max_fixes     = 5
+gate_cmd      = ""
+manager_model = "claude"
+steps         = [ "arch", "work", "test" ]
+arch_models   = [ "claude", "codex", "claude" ]
+work_models   = [ "claude", "codex", "claude" ]
+test_models   = [ "claude", "codex", "claude" ]
