@@ -1,4 +1,6 @@
 mod arch;
 mod base;
+mod group;
+mod task;
 
-pub use arch::Thread;
+pub use arch::{Group, Task, Thread};

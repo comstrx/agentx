@@ -1,4 +1,5 @@
 mod arch;
-mod base;
+mod request;
+mod response;
 
-pub use arch::{Net, Request, Response};
+pub use arch::{Request, Response};

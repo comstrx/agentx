@@ -1,98 +1,50 @@
-use std::collections::HashMap;
+use std::path::Path as StdPath;
 
-use crate::core::context::{AppContext, ContextValue};
+use crate::core::error::AppResult;
+use crate::core::support::date::Date;
+use crate::core::support::fs::File;
+use crate::core::support::parse::Json;
+use super::arch::{Journey, Phase, Status};
 
-/// Type-safe, namespaced views over the global [`AppContext`] for the live run:
-/// per-agent sessions, init tracking, frozen tasks, and blocked steps. Sessions
-/// are mirrored to `sessions.json` by the orchestrator.
-pub struct State;
+impl Journey {
 
-impl State {
+    pub fn fresh () -> Self {
 
-    fn session_key ( agent: &str ) -> String {
-
-        format!("session.{agent}")
-
-    }
-
-    fn primed_key ( agent: &str ) -> String {
-
-        format!("primed.{agent}")
-
-    }
-
-    pub fn session ( agent: &str ) -> Option<String> {
-
-        AppContext::get(Self::session_key(agent))
-
-    }
-
-    pub fn set_session ( agent: &str, id: &str ) {
-
-        AppContext::set(Self::session_key(agent), id);
-
-    }
-
-    /// Seed sessions read from disk into the context.
-    pub fn load_sessions ( sessions: HashMap<String, String> ) {
-
-        for ( agent, id ) in sessions {
-            AppContext::set(Self::session_key(&agent), id);
+        Self {
+            journey_id: format!("{}-{}", Date::stamp(), Date::format("%H%M%S")),
+            phase: Phase::Requires,
+            status: Status::Running,
+            started_at: Date::rfc3339(),
+            ..Self::default()
         }
 
     }
 
-    /// Collect all live sessions for persistence.
-    pub fn sessions () -> HashMap<String, String> {
+    pub fn load ( path: &StdPath ) -> Self {
 
-        AppContext::with(|map| {
+        let body = File::read(path);
 
-            map.iter().filter_map(|( key, value )| {
-                let agent = key.strip_prefix("session.")?;
-                value.as_str().map(|id| ( agent.to_string(), id.to_string() ))
-            }).collect()
+        if body.trim().is_empty() { return Self::default(); }
 
-        })
+        Json::parse(&body).unwrap_or_default()
 
     }
 
-    /// Record the first turn for `agent`; returns true if this *was* the init turn.
-    pub fn take_init ( agent: &str ) -> bool {
+    pub fn save ( &mut self, path: &StdPath ) -> AppResult<()> {
 
-        let key = Self::primed_key(agent);
-        let fresh = AppContext::get::<bool>(&key) != Some(true);
-        AppContext::set(key, true);
+        self.updated_at = Date::rfc3339();
 
-        fresh
+        let body = Json::to_string_pretty(self)?;
+        File::write_atomic(path, &body)
 
     }
 
-    pub fn set_frozen ( names: Vec<String> ) {
+    pub fn is_resumable ( &self ) -> bool {
 
-        AppContext::set("run.frozen", ContextValue::list(names));
-
-    }
-
-    pub fn frozen () -> Vec<String> {
-
-        AppContext::get("run.frozen").unwrap_or_default()
-
-    }
-
-    pub fn blocked () -> Vec<String> {
-
-        AppContext::get("run.blocked").unwrap_or_default()
-
-    }
-
-    pub fn add_blocked ( step: &str ) {
-
-        let mut blocked = Self::blocked();
-
-        if !blocked.iter().any(|name| name == step) {
-            blocked.push(step.to_string());
-            AppContext::set("run.blocked", ContextValue::list(blocked));
-        }
+        !self.journey_id.is_empty()
+            && self.phase != Phase::Idle
+            && self.phase != Phase::Completed
+            && self.status != Status::Completed
 
     }
 

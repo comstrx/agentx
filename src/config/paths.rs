@@ -1,41 +1,42 @@
 use std::path::{Path as StdPath, PathBuf};
 
 use super::arch::Paths;
-use super::names::{CACHE_DIR, CONFIG_FILE, DOCS_DIR};
+use super::consts::{CACHE_DIR, CONFIG_FILE, DOCS_DIR};
 
 impl Paths {
 
-    /// Derive the full layout from a project root.
     pub fn new ( root: &StdPath ) -> Self {
 
         let docs = root.join(DOCS_DIR);
         let cache = root.join(CACHE_DIR);
+        let reports = cache.join("reports");
 
         Self {
             root: root.to_path_buf(),
 
             overview: docs.join("overview.md"),
             contracts: docs.join("contracts"),
-            history: docs.join("history"),
-            tasks: docs.join("tasks"),
+            skills: docs.join("skills"),
             requires: docs.join("requires"),
 
-            reports: cache.join("reports"),
+            config_file: root.join(CONFIG_FILE),
+            gitignore: cache.join(".gitignore"),
+
+            state: cache.join("state.json"),
+            pid: cache.join("agentx.pid"),
+            active: cache.join("active.pid"),
+            sessions: cache.join("sessions.json"),
+            drain: cache.join("drain"),
+            gate_log: cache.join("gate.log"),
+
+            inbox: cache.join("requires"),
+            tasks: cache.join("tasks"),
+            manager: reports.join("manager"),
             rounds: cache.join("rounds"),
             tests: cache.join("tests"),
             probes: cache.join("probes"),
             prompts: cache.join("prompts"),
-            runs: cache.join("runs"),
-
-            review: cache.join("review.md"),
-            control: cache.join("control.md"),
-            gate_log: cache.join("gate.log"),
-            pid: cache.join("agentx.pid"),
-            active: cache.join("active.pid"),
-            drain: cache.join("drain"),
-            sessions: cache.join("sessions.json"),
-            gitignore: cache.join(".gitignore"),
-            config_file: root.join(CONFIG_FILE),
+            reports,
 
             docs,
             cache,
@@ -43,17 +44,39 @@ impl Paths {
 
     }
 
-    /// Per-step reports directory, e.g. `.agentx/reports/arch`.
-    pub fn reports_of ( &self, step: &str ) -> PathBuf {
+    pub fn reports_of ( &self, phase: &str ) -> PathBuf {
 
-        self.reports.join(step)
+        self.reports.join(phase)
 
     }
 
-    /// Per-step rounds directory, e.g. `.agentx/rounds/work`.
-    pub fn rounds_of ( &self, step: &str ) -> PathBuf {
+    pub fn report_of ( &self, phase: &str, agent: &str ) -> PathBuf {
 
-        self.rounds.join(step)
+        self.reports.join(phase).join(format!("{agent}.md"))
+
+    }
+
+    pub fn review_of ( &self, phase: &str ) -> PathBuf {
+
+        self.manager.join(format!("{phase}-review.md"))
+
+    }
+
+    pub fn summary ( &self ) -> PathBuf {
+
+        self.manager.join("summary.md")
+
+    }
+
+    pub fn rounds_of ( &self, phase: &str ) -> PathBuf {
+
+        self.rounds.join(phase)
+
+    }
+
+    pub fn task_rounds ( &self, task: &str ) -> PathBuf {
+
+        self.rounds.join("tasks").join(task)
 
     }
 

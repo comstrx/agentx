@@ -1,13 +1,11 @@
 use std::path::{Path as StdPath, PathBuf};
 
 use crate::core::error::AppResult;
-use crate::core::support::text::Text;
-use crate::core::support::time::Time;
+use crate::core::support::{date::Date, text::Text};
 use super::arch::{Dir, Path};
 
 impl Dir {
 
-    /// Create a directory and all parents.
     pub fn ensure ( dir: &StdPath ) -> AppResult<()> {
 
         std::fs::create_dir_all(dir)?;
@@ -16,7 +14,18 @@ impl Dir {
 
     }
 
-    /// Direct children, naturally sorted by name. Empty on any error.
+    pub fn ensure_parent ( path: &StdPath ) -> AppResult<()> {
+
+        if let Some(parent) = path.parent() {
+
+            std::fs::create_dir_all(parent)?;
+
+        }
+
+        Ok(())
+
+    }
+
     pub fn entries ( dir: &StdPath ) -> Vec<PathBuf> {
 
         let mut out: Vec<PathBuf> = match std::fs::read_dir(dir) {
@@ -30,14 +39,12 @@ impl Dir {
 
     }
 
-    /// Markdown files directly under `dir`, naturally sorted.
     pub fn markdown ( dir: &StdPath ) -> Vec<PathBuf> {
 
         Self::entries(dir).into_iter().filter(|path| path.is_file() && Path::has_extension(path, "md")).collect()
 
     }
 
-    /// Child names, naturally sorted.
     pub fn names ( dir: &StdPath ) -> Vec<String> {
 
         Self::entries(dir).iter().map(|path| Path::name_of(path)).collect()
@@ -53,7 +60,6 @@ impl Dir {
 
     }
 
-    /// Delete every child of `dir`, leaving `dir` itself.
     pub fn clear ( dir: &StdPath ) {
 
         if let Ok(reader) = std::fs::read_dir(dir) {
@@ -62,24 +68,39 @@ impl Dir {
 
                 let path = entry.path();
 
-                if path.is_dir() {
-                    let _ = std::fs::remove_dir_all(&path);
-                } else {
-                    let _ = std::fs::remove_file(&path);
-                }
+                if path.is_dir() { let _ = std::fs::remove_dir_all(&path); }
+                else { let _ = std::fs::remove_file(&path); }
+
             }
+
         }
 
     }
 
-    /// Remove the directory and everything under it, ignoring a missing target.
     pub fn remove ( dir: &StdPath ) {
 
         let _ = std::fs::remove_dir_all(dir);
 
     }
 
-    /// Recursively copy `src` into `dst`. No-op when `src` is missing or empty.
+    pub fn clear_files ( dir: &StdPath ) {
+
+        if let Ok(reader) = std::fs::read_dir(dir) {
+
+            for entry in reader.flatten() {
+
+                let path = entry.path();
+
+                if path.is_symlink() { let _ = std::fs::remove_file(&path); }
+                else if path.is_dir() { Self::clear_files(&path); }
+                else { let _ = std::fs::remove_file(&path); }
+
+            }
+
+        }
+
+    }
+
     pub fn copy_tree ( src: &StdPath, dst: &StdPath ) -> AppResult<()> {
 
         let entries: Vec<_> = match std::fs::read_dir(src) {
@@ -87,9 +108,7 @@ impl Dir {
             Err(_) => return Ok(()),
         };
 
-        if entries.is_empty() {
-            return Ok(());
-        }
+        if entries.is_empty() { return Ok(()); }
 
         std::fs::create_dir_all(dst)?;
 
@@ -98,18 +117,23 @@ impl Dir {
             let from = entry.path();
             let into = dst.join(Path::name_of(&from));
 
-            if from.is_dir() {
-                Self::copy_tree(&from, &into)?;
-            } else {
-                std::fs::copy(&from, &into)?;
-            }
+            if from.is_dir() { Self::copy_tree(&from, &into)?; }
+            else { std::fs::copy(&from, &into)?; }
+
         }
 
         Ok(())
 
     }
 
-    /// Next zero-padded counter (`001`, `002`, ...) for files in `dir`.
+    pub fn leading_number ( name: &str ) -> Option<u32> {
+
+        let digits: String = name.chars().take_while(|c| c.is_ascii_digit()).collect();
+
+        digits.parse().ok()
+
+    }
+
     pub fn next_sequence ( dir: &StdPath ) -> String {
 
         let _ = std::fs::create_dir_all(dir);
@@ -119,22 +143,27 @@ impl Dir {
 
             for entry in reader.flatten() {
 
-                if let Some(number) = leading_number(&Path::name_of(&entry.path())) {
+                if let Some(number) = Self::leading_number(&Path::name_of(&entry.path())) {
+
                     highest = highest.max(number);
+
                 }
+
             }
+
         }
 
         format!("{:03}", highest + 1)
 
     }
 
-    /// Next dated stamp (`YYYY-MM-DD-0001`) for entries in `dir`.
     pub fn next_stamp ( dir: &StdPath ) -> String {
 
         let _ = std::fs::create_dir_all(dir);
-        let day = Time::stamp();
+
+        let day = Date::stamp();
         let prefix = format!("{day}-");
+
         let mut highest = 0u32;
 
         if let Ok(reader) = std::fs::read_dir(dir) {
@@ -143,24 +172,54 @@ impl Dir {
 
                 let name = Path::name_of(&entry.path());
 
-                if let Some(rest) = name.strip_prefix(&prefix)
-                    && let Some(number) = leading_number(rest)
-                {
+                if let Some(rest) = name.strip_prefix(&prefix) && let Some(number) = Self::leading_number(rest) {
+
                     highest = highest.max(number);
+
                 }
+
             }
+
         }
 
         format!("{day}-{:04}", highest + 1)
 
     }
 
-}
+    pub fn files ( dir: &StdPath ) -> Vec<PathBuf> {
 
-fn leading_number ( name: &str ) -> Option<u32> {
+        Self::entries(dir).into_iter().filter(|path| path.is_file()).collect()
 
-    let digits: String = name.chars().take_while(|c| c.is_ascii_digit()).collect();
+    }
 
-    digits.parse().ok()
+    pub fn subdirs ( dir: &StdPath ) -> Vec<PathBuf> {
+
+        Self::entries(dir).into_iter().filter(|path| path.is_dir()).collect()
+
+    }
+
+    pub fn walk ( dir: &StdPath ) -> Vec<PathBuf> {
+
+        let mut out = Vec::new();
+
+        for path in Self::entries(dir) {
+
+            if path.is_dir() {
+
+                out.push(path.clone());
+                out.extend(Self::walk(&path));
+
+            }
+            else {
+
+                out.push(path);
+
+            }
+
+        }
+
+        out
+
+    }
 
 }

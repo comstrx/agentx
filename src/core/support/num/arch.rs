@@ -1,3 +1,2 @@
-/// Small numeric helpers: lenient parsing and bounds.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Num;

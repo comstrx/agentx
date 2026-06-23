@@ -1,4 +1,4 @@
-# ✨ Agentx
+# ✨ AgentX
 
 <div align="center">
     <img height="350" src="https://github.com/user-attachments/assets/3d70694c-db2b-40e2-acd3-1016523a91c5" />
@@ -10,37 +10,24 @@
 
 **Drop requirements into a repo. Get production-grade code back.**
 
-A single Rust crate — library *and* binary — that orchestrates a competing team
-of CLI coding agents to convergence. Fast, gated, zero ceremony.
-
-Agentx is a hierarchical multi-agent orchestrator. It runs a *competing team* of
-CLI agents (`claude`, optionally `codex`) through three steps —
-**arch** (plan) → **work** (build) → **test** (verify) — with a **manager**
-judging every step and a **gate** kept green throughout.
+One Rust crate — library *and* binary — that drives a competing team of CLI
+coding agents (`claude`, optionally `codex`) to convergence: **fast, gated,
+resumable, self-training.** Architects turn your requirements into ordered task
+contracts, executors build them one at a time, verifiers attack the result, a
+manager judges every round, and a gate stays green throughout.
 
 ```
-requirements ─▶ arch ─▶ work ─▶ test ─▶ decision record  +  archived run
+agents/requires/ ─▶ requires ─▶ tasks ─▶ tests ─▶ finalize ─▶ ~/.agentx/train/<type>/history/
+                    architects  executors verifiers  manager     the lesson, fed back to next time
 ```
-
-## How it works
-
-Three loops drive every step to convergence:
-
-- **Roster** — each step runs a team of agents in rounds; a turn converges only when its report's last line is exactly `ship it`.
-- **Manager** — reviews each finished step and either ships it or writes concrete notes back for another round, up to `max_rounds`.
-- **Gate** — in **work** only, runs after every executor turn; if it's red, the executor gets up to `max_fixes` repair turns before the step can ship.
-
-On success the manager writes one decision record to `agents/history/` and the
-whole run is archived to `.agentx/runs/<stamp>/`. If a step can't converge, the
-pipeline stops there and records the open issues — nothing is destroyed.
 
 ## Quickstart
 
 ```sh
-cargo install --path .                         # → agentx on your PATH
-agentx init                                    # scaffold the layout
+cargo install --path .                      # → agentx on your PATH
+agentx init                                 # scaffold + bind a training archetype
 echo "build X that does Y" > agents/requires/0001-x.md
-agentx start                                   # the team builds it
+agentx start                                # the team builds it
 ```
 
 > Agents are external CLIs — install `claude` (and `codex` if you use it).
@@ -49,59 +36,116 @@ agentx start                                   # the team builds it
 
 | command | what it does |
 |---------|--------------|
-| `init`  | scaffold `Agentx.toml`, `agents/`, `.agentx/` in the current dir |
-| `start` | resolve the project root, run a full cycle |
-| `stop`  | kill the running cycle and its agents immediately |
-| `drain` | stop cleanly after the current turn (state kept, resumable) |
-| `clean` | delete the `.agentx` cache |
+| `init`  | scaffold `Agentx.toml` + `agents/` + `.agentx/`, then detect the project type and gate command and write them to `Agentx.toml` |
+| `start` | resolve the project root, then **run or resume** a full cycle; clears `.agentx/` on success |
+| `stop`  | kill the running cycle and its agents immediately — resumable |
+| `drain` | stop cleanly after the current turn — resumable |
+| `clean` | clear the `.agentx/` runtime files, keeping the directory layout |
+| `info`  | print a clean snapshot — config, paths, classification, journey, sessions (read-only) |
+| `reset` | wipe and re-seed the global training center (`~/.agentx`) from the binary |
 
-`start` resolves the root by: `Agentx.toml` in cwd → nearest `.git` upward →
-nearest `Agentx.toml` upward → cwd. `init` always targets the current dir.
+Global flags: `-C, --dir <DIR>` operate as if started in `DIR`; `-t, --type
+<TYPE>` bind a training archetype explicitly (skips auto-detection).
 
-## Layout it owns
+`start` resolves the root by walking up for the nearest `Agentx.toml`; if none
+is found it uses the current dir — the git root is never used, so a sub-project
+in a monorepo (e.g. `repo/server`) stays its own project. `init` always targets
+the current dir.
+
+## How a run works
+
+- **Prime** — before any work, every agent and the manager open a session, study
+  the project (your `agents/` files + the archetype knowledge + the real
+  codebase) and confirm the bar. Briefing happens **once**; later turns are
+  lightweight — work plus reading reports.
+- **Architects** write ordered task contracts (`0001-*.md`, …) under
+  `.agentx/tasks/`, each fixing a path, public interface, invariants, and
+  testable acceptance criteria.
+- **Executors** build the tasks **one at a time** — the whole roster works each
+  task in turn, reading the prior reports. The gate runs after every executor
+  turn; a red gate gets up to `max_fixes` repair turns.
+- **Manager** reviews each round and ships it or returns concrete notes, up to
+  `max_rounds`. **Verifiers** then exercise the finished code for real.
+
+Runs are **resumable**: the cursor (phase, task, agent, round) is checkpointed
+atomically to `.agentx/state.json` after every action, so `stop`/`drain` are
+safe and `start` picks up exactly where it left off. Agents never write under
+`agents/`.
+
+## How it trains itself
+
+agentx keeps a global, per-archetype knowledge base at `~/.agentx/train/<id>/`.
+Each archetype carries an `about.md` — its identity card: stack, architecture,
+and exactly what it fits — plus five buckets: `overview/` (how this kind of
+system is built), `contracts/` (enforceable law), `skills/` (reusable
+playbooks), `requires/` (baseline requirements), `history/` (lessons from past
+runs).
+
+- **Seeded** — archetypes ship embedded in the binary and extract on first run
+  (copy-if-absent, so upgrades sync new material without clobbering learned
+  history).
+- **Bound** — on `init`/`start`, if `project_type` is empty, a one-shot agent
+  reads every archetype's `about.md`, matches your project's stack and shape to
+  the best fit (and proposes a `gate_cmd`), and writes both to `Agentx.toml`.
+- **Injected** — every agent's briefing prepends the archetype's overview +
+  contracts + skills + history before your own `agents/` files; on conflict,
+  **your files win**. A fresh project of a known kind starts at staff level.
+- **Learned** — when a run completes, the manager writes one generalized lesson
+  into the archetype's `history/`. The next project of that kind starts smarter.
+
+That is the loop: each run teaches the archetype; each new project inherits
+everything the archetype has learned.
+
+## Layout
 
 ```
-agents/            durable, committed — your intent + the run's memory
-  overview.md        how the system must be built
+agents/            durable, committed — your intent (agents never write here)
+  overview.md        how the system must be built   (a file, or overview/)
   contracts/         LAW — overrides agent preferences
-  requires/          requirements to build
-  tasks/             task contracts (frozen if you authored them)
-  history/           one decision record per completed cycle
-.agentx/           ephemeral scratch (gitignored)
-  reports/ rounds/ prompts/ tests/ probes/ runs/
-  sessions.json  control.md  review.md  gate.log  *.pid  drain
-Agentx.toml        config — optional, sane defaults if absent
+  skills/            reusable know-how for this codebase
+  requires/          requirements to build           (your only required input)
+.agentx/           ephemeral runtime (gitignored), cleared on success
+  state.json         the resumable cursor: phase, current task/agent, round
+  requires/          frozen snapshot of the requirements
+  tasks/             architect-generated task contracts
+  reports/           per-agent reports per phase + manager/ reviews
+  rounds/            per-round report archive (task-scoped under tasks/)
+  sessions.json  gate.log  *.pid  drain
+Agentx.toml        config — created by init
+~/.agentx/train/<id>/   global training center (shared across all projects)
+  about.md             archetype identity card — stack + what it fits (drives binding)
+  overview/ contracts/ skills/ requires/ history/
 ```
 
 ## Config (`[project]`)
 
-| key             | default            | meaning                                   |
-|-----------------|--------------------|-------------------------------------------|
-| `max_rounds`    | 5                  | manager review rounds per step            |
-| `max_fixes`     | 5                  | gate-repair turns per executor            |
-| `gate_cmd`      | `""`               | shell command that must pass (empty = ok) |
-| `gate_timeout`  | 900                | seconds before the gate is force-failed   |
-| `manager_model` | `claude`           | reviewer model                            |
-| `steps`         | `arch, work, test` | which steps to run                        |
-| `arch_models`   | `[claude]`         | architect roster (duplicates allowed)     |
-| `work_models`   | `[claude]`         | executor roster                           |
-| `test_models`   | `[claude]`         | verifier roster                           |
+| key                | default    | meaning                                          |
+|--------------------|------------|--------------------------------------------------|
+| `project_type`     | `""`       | training archetype to inherit (auto-detected)    |
+| `gate_cmd`         | `""`       | shell command that must pass (auto-suggested; empty = skip) |
+| `gate_timeout`     | 900        | seconds before the gate is force-failed          |
+| `max_rounds`       | 5          | manager review rounds per phase / task           |
+| `max_fixes`        | 5          | gate-repair turns per executor                   |
+| `manager_model`    | `claude`   | reviewer model                                   |
+| `architect_models` | `[claude]` | architect roster (duplicates allowed)            |
+| `executor_models`  | `[claude]` | executor roster                                  |
+| `tester_models`    | `[claude]` | verifier roster                                  |
 
 A roster of `["claude", "claude", "codex"]` expands to `claude_1 claude_2
 codex_1` — each a persistent, independently-briefed agent.
 
 ```toml
-# Agentx.toml — every key is optional; shown with a real gate and a mixed roster.
+# Agentx.toml — every key is optional; init fills project_type + gate_cmd for you.
 [project]
-max_rounds    = 5
-max_fixes     = 5
-gate_cmd      = "cargo clippy -- -D warnings && cargo test"
-gate_timeout  = 900
-manager_model = "claude"
-steps         = ["arch", "work", "test"]
-arch_models   = ["claude"]
-work_models   = ["claude", "codex"]
-test_models   = ["claude"]
+project_type     = "laravel-octane-tenancy-api"
+gate_cmd         = "vendor/bin/phpstan --no-progress && php artisan test"
+gate_timeout     = 900
+max_rounds       = 5
+max_fixes        = 5
+manager_model    = "claude"
+architect_models = ["claude"]
+executor_models  = ["claude", "codex"]
+tester_models    = ["claude"]
 ```
 
 ## As a library
@@ -110,10 +154,10 @@ Agentx is a library *and* a binary from one crate — embed it in any Rust proje
 Every entry point is blocking and returns `agentx::AppResult<()>`:
 
 ```rust
-use agentx::Agentx;
+use agentx::App;
 
 fn main() -> agentx::AppResult<()> {
-    Agentx::start(std::path::Path::new("."))   // also: init · stop · drain · clean
+    App::start(std::path::Path::new("."))   // also: init · stop · drain · clean · info
 }
 ```
 

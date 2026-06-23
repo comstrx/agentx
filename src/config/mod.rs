@@ -1,12 +1,9 @@
-//! Static definitions — constants, defaults, paths, spec, prompts, templates.
-//! Depends only on `core`; holds no runtime state.
-
 pub mod arch;
-pub mod defaults;
-pub mod names;
+pub mod model;
 pub mod paths;
-pub mod prompts;
 pub mod spec;
-pub mod templates;
+pub mod train;
+pub mod consts;
+pub mod prompts;
 
-pub use arch::{Config, Context, Paths, Spec};
+pub use arch::{Config, Context, Paths, Spec, Train};

@@ -1,28 +1,26 @@
 use std::collections::HashMap;
 use std::path::Path as StdPath;
-use serde::Deserialize;
 
 use crate::core::error::AppResult;
 use crate::core::support::fs::File;
 use crate::core::support::parse::Toml;
-use super::arch::Spec;
-use super::defaults::{DEFAULT_MODEL, GATE_TIMEOUT, MANAGER_MODEL, MAX_FIXES, MAX_ROUNDS};
-use super::names::STEPS;
+use super::arch::{Document, Spec};
+use super::consts::{DEFAULT_MODEL, GATE_TIMEOUT, MANAGER_MODEL, MAX_FIXES, MAX_ROUNDS};
 
 impl Default for Spec {
 
     fn default () -> Self {
 
         Self {
+            project_type: String::new(),
             max_rounds: MAX_ROUNDS,
             max_fixes: MAX_FIXES,
             gate_cmd: String::new(),
             gate_timeout: GATE_TIMEOUT,
             manager_model: MANAGER_MODEL.to_string(),
-            steps: STEPS.iter().map(|step| step.to_string()).collect(),
-            arch_models: vec![DEFAULT_MODEL.to_string()],
-            work_models: vec![DEFAULT_MODEL.to_string()],
-            test_models: vec![DEFAULT_MODEL.to_string()],
+            architect_models: vec![DEFAULT_MODEL.to_string()],
+            executor_models: vec![DEFAULT_MODEL.to_string()],
+            tester_models: vec![DEFAULT_MODEL.to_string()],
         }
 
     }
@@ -31,91 +29,83 @@ impl Default for Spec {
 
 impl Spec {
 
-    /// The raw model list for a step.
-    pub fn models ( &self, step: &str ) -> &[String] {
+    pub fn load ( config_file: &StdPath ) -> AppResult<Self> {
 
-        match step {
-            "arch" => &self.arch_models,
-            "work" => &self.work_models,
-            "test" => &self.test_models,
+        let body = File::read(config_file);
+
+        if body.trim().is_empty() { return Ok(Self::default()); }
+
+        let document: Document = Toml::parse(&body)?;
+
+        Ok(document.project.sanitized())
+
+    }
+
+    pub fn save ( &self, config_file: &StdPath ) -> AppResult<()> {
+
+        let document = Document { project: self.clone() };
+
+        File::write_atomic(config_file, &Toml::to_string_pretty(&document)?)
+
+    }
+
+    pub fn models ( &self, phase: &str ) -> &[String] {
+
+        match phase {
+            "requires" => &self.architect_models,
+            "tasks" => &self.executor_models,
+            "tests" => &self.tester_models,
             _ => &[],
         }
 
     }
 
-    /// The expanded roster: `[claude, claude, codex]` -> `[claude_1, claude_2, codex_1]`.
-    pub fn roster ( &self, step: &str ) -> Vec<String> {
+    pub fn roster ( &self, phase: &str ) -> Vec<String> {
 
-        expand_roster(self.models(step))
+        Self::expand_roster(self.models(phase))
 
     }
 
-    /// Drop unknown steps, and restore defaults for any list left empty.
     fn sanitized ( mut self ) -> Self {
 
-        self.steps.retain(|step| STEPS.contains(&step.as_str()));
+        self.max_rounds = self.max_rounds.max(1);
 
-        if self.steps.is_empty() {
-            self.steps = STEPS.iter().map(|step| step.to_string()).collect();
-        }
+        self.manager_model = self.manager_model.trim().to_string();
 
-        for models in [&mut self.arch_models, &mut self.work_models, &mut self.test_models] {
+        if self.manager_model.is_empty() { self.manager_model = MANAGER_MODEL.to_string(); }
+
+        for models in [&mut self.architect_models, &mut self.executor_models, &mut self.tester_models] {
 
             models.retain(|model| !model.trim().is_empty());
 
-            if models.is_empty() {
-                models.push(DEFAULT_MODEL.to_string());
-            }
+            if models.is_empty() { models.push(DEFAULT_MODEL.to_string()); }
+
         }
 
         self
 
     }
 
-}
+    fn expand_roster ( models: &[String] ) -> Vec<String> {
 
-#[derive(Deserialize)]
-struct Document {
+        let mut roster = Vec::with_capacity(models.len());
+        let mut seen: HashMap<&str, u32> = HashMap::new();
 
-    #[serde(default)]
-    project: Spec,
-}
+        for raw in models {
 
-/// Load `[project]` from `Agentx.toml`, falling back to defaults if absent.
-pub fn load ( config_file: &StdPath ) -> AppResult<Spec> {
+            let model = raw.trim();
 
-    let body = File::read(config_file);
+            if model.is_empty() { continue; }
 
-    if body.trim().is_empty() {
-        return Ok(Spec::default());
-    }
+            let count = seen.entry(model).or_insert(0);
+            *count += 1;
 
-    let document: Document = Toml::parse(&body)?;
+            roster.push(format!("{model}_{count}"));
 
-    Ok(document.project.sanitized())
-
-}
-
-/// Expand a model list into uniquely-suffixed agent ids.
-pub fn expand_roster ( models: &[String] ) -> Vec<String> {
-
-    let mut roster = Vec::with_capacity(models.len());
-    let mut seen: HashMap<&str, u32> = HashMap::new();
-
-    for raw in models {
-
-        let model = raw.trim();
-
-        if model.is_empty() {
-            continue;
         }
 
-        let count = seen.entry(model).or_insert(0);
-        *count += 1;
+        roster
 
-        roster.push(format!("{model}_{count}"));
     }
-
-    roster
 
 }

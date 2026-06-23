@@ -8,8 +8,7 @@ use super::arch::{Json, Parse, Toml, Yaml};
 
 impl Parse {
 
-    /// Load and deserialize a file, picking the codec from its extension.
-    pub fn load<T: DeserializeOwned> ( path: &StdPath ) -> AppResult<T> {
+    pub fn load <T: DeserializeOwned> ( path: &StdPath ) -> AppResult<T> {
 
         let body = File::read_opt(path).ok_or_else(|| AppError::not_found(path.to_string_lossy()))?;
 
@@ -22,8 +21,7 @@ impl Parse {
 
     }
 
-    /// Serialize and write a value, picking the codec from the extension.
-    pub fn save<T: Serialize> ( path: &StdPath, value: &T ) -> AppResult<()> {
+    pub fn save <T: Serialize> ( path: &StdPath, value: &T ) -> AppResult<()> {
 
         let body = match Path::extension(path).as_str() {
             "toml" => Toml::to_string_pretty(value)?,

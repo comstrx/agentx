@@ -1,16 +1,11 @@
-//! agentx itself — the orchestration logic. Builds on `core` + `config`.
-
-mod archive;
+mod arch;
 mod base;
+mod cli;
 mod compose;
-mod discovery;
-mod gate;
-mod lifecycle;
-mod orchestrator;
-mod scaffold;
+mod index;
+mod project;
+mod run;
 mod state;
-mod workers;
+mod ui;
 
-pub mod agentx;
-
-pub use agentx::Agentx;
+pub use arch::{App, Cli};
