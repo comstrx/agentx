@@ -1,5 +1,8 @@
 use std::env;
+use std::io;
 use clap::{CommandFactory, Parser};
+use clap_complete::{Shell, generate};
+use clap_mangen::Man;
 
 use crate::core::error::AppResult;
 use super::arch::{App, Cli, Command, Flags};
@@ -38,10 +41,32 @@ impl Cli {
             Command::Doctor                     => App::doctor(&dir),
             Command::Sync                       => App::sync(),
             Command::Reset                      => App::reset(),
+            Command::Completions { shell }      => Self::completions(shell),
+            Command::Man                        => Self::man(),
             Command::Help { command }           => Self::help(command.as_deref()),
         }
 
     }
+
+    fn completions ( shell: Shell ) -> AppResult<()> {
+
+        let mut command = Self::command();
+        let name = command.get_name().to_string();
+
+        generate(shell, &mut command, name, &mut io::stdout());
+
+        Ok(())
+
+    }
+
+    fn man () -> AppResult<()> {
+
+        Man::new(Self::command()).render(&mut io::stdout())?;
+
+        Ok(())
+
+    }
+
     fn help ( command: Option<&str> ) -> AppResult<()> {
 
         let mut root = Self::command();

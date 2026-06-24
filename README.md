@@ -93,6 +93,13 @@ agentx start --bg                            # or detached — drive it with sta
 
 Per-backend `model`/`effort` live only in the `[claude]`/`[codex]` tables of `Agentx.toml`.
 
+Shell completions and a man page are generated on demand:
+
+```sh
+agentx completions zsh > ~/.zfunc/_agentx      # bash · zsh · fish · elvish · powershell
+agentx man > /usr/local/share/man/man1/agentx.1
+```
+
 ## How a run works
 
 - **Prime** — the whole team studies the project once and confirms the bar (training only).

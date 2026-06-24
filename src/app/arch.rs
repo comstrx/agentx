@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::time::Instant;
 use clap::builder::styling::{AnsiColor, Effects, Styles};
 use clap::{ArgAction, Parser, Subcommand};
+use clap_complete::Shell;
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 
@@ -158,6 +159,15 @@ pub enum Command {
 
     #[command(about = "Wipe and re-seed the global training center (~/.agentx) from the binary, learned history included")]
     Reset,
+
+    #[command(about = "Print a shell completion script (bash, zsh, fish, elvish, powershell) to stdout")]
+    Completions {
+        #[arg(value_name = "SHELL", help = "Shell to generate completions for")]
+        shell: Shell,
+    },
+
+    #[command(about = "Print the man page in roff format to stdout")]
+    Man,
 
     #[command(about = "Print this message, or the help of the given subcommand")]
     Help {
