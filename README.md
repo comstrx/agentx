@@ -30,11 +30,8 @@ checksum-verified, onto your `PATH`.
 curl --proto '=https' --tlsv1.2 -LsSf https://github.com/comstrx/agentx/releases/latest/download/agentx-installer.sh | sh
 ```
 
-**Windows** (PowerShell)
-
-```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/comstrx/agentx/releases/latest/download/agentx-installer.ps1 | iex"
-```
+> **Windows:** run it under **WSL2** for now — native Windows support (and a
+> PowerShell installer) is on the roadmap.
 
 **With Cargo** — prebuilt, or from source:
 
