@@ -12,7 +12,7 @@ use super::arch::Train;
 use super::consts::CONSULT_TIMEOUT;
 use super::prompts as P;
 
-static INCLUDE: Embedded<'static> = include_dir!("$CARGO_MANIFEST_DIR/include");
+static INCLUDE: Embedded<'static> = include_dir!("$CARGO_MANIFEST_DIR/seed");
 
 impl Train {
 

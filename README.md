@@ -7,6 +7,8 @@
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](./LICENSE)
 [![Rust 1.92+](https://img.shields.io/badge/rust-1.92%2B-orange.svg)](https://www.rust-lang.org)
 [![edition 2024](https://img.shields.io/badge/edition-2024-green.svg)](https://doc.rust-lang.org/edition-guide/)
+[![CI](https://github.com/comstrx/agentx/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/comstrx/agentx/actions/workflows/ci.yaml)
+[![Release](https://img.shields.io/github/v/release/comstrx/agentx?sort=semver)](https://github.com/comstrx/agentx/releases/latest)
 
 **Drop requirements into a repo. Get production-grade code back.**
 
@@ -43,9 +45,6 @@ cargo install --git https://github.com/comstrx/agentx   # from source (Rust 1.92
 > agentx drives external agent CLIs — install `claude` (and `codex` if you use
 > it) first; `agentx doctor` verifies them. macOS may quarantine an unsigned
 > binary: `xattr -d com.apple.quarantine "$(command -v agentx)"`.
->
-> **Windows is via WSL2 for now** — native Windows support is on the roadmap, and
-> the PowerShell installer above goes live with it.
 
 ## Build from source
 

@@ -1,7 +1,8 @@
 target/
 *.lock
+!Cargo.lock
 .claude
 .codex
 .env
 .secret
-old-*.md
+old-*

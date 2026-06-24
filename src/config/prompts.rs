@@ -335,7 +335,7 @@ differences. If two seem close, choose the one whose ARCHITECTURE, not just lang
 
 Then OVERWRITE exactly this file - {answer} - with a SINGLE line and nothing else. The line is EXACTLY one of:
   TYPE: <id>              the project clearly fits a type above - use its EXACT id (the heading, e.g.
-                          laravel-octane-tenancy-api)
+                          laravel-octane-tenancy-pgsql)
   TYPE: new <kebab-name>  it genuinely fits NONE of them well; propose a short, generic kebab name from its
                           stack + shape (e.g. django-rest-api, nextjs-saas) - never the project's own name
   TYPE: none              you genuinely cannot tell from the evidence
