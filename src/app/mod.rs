@@ -8,4 +8,4 @@ mod run;
 mod state;
 mod ui;
 
-pub use arch::{App, Cli};
+pub use arch::{App, Cli, Flags};

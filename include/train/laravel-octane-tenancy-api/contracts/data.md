@@ -6,6 +6,12 @@ every turn. Every table is tenant-scoped unless it is platform infrastructure.
 ## Universal rules
 - **UUIDv7** primary key (`string`) on every table. **`tenant_id`** (UUIDv7, indexed, FK) on every
   tenant-owned table. FKs are `<singular>_id`.
+- **UUID everywhere means UUID *columns* everywhere.** Primary keys `uuid('id')->primary()` (never `id()` /
+  `bigIncrements`); FKs `foreignUuid()` / `uuid()` (never `foreignId()`); polymorphic columns
+  **`uuidMorphs()` / `nullableUuidMorphs()`** (never `morphs()` — a bigint morph id cannot hold a UUID).
+  **Convert every Laravel scaffold migration** that ships as bigint — `personal_access_tokens` (`tokenable`),
+  `jobs`, `cache`, `sessions`, the default users table — to UUID before it ships. A bigint `id`/`tokenable_id`
+  against UUID models is latent corruption, not a style nit.
 - **Every business unique includes `tenant_id`**; composite uniques and hot indexes **lead with `tenant_id`**.
 - Money is integer minor units; time is UTC; closed sets are PHP enums; soft-delete via a `deleted` flag /
   `deleted_at` where the domain needs it.
@@ -22,6 +28,15 @@ Most tables are tenant-scoped; these are NOT (no `tenant_id`, or `tenant_id` **n
 - **shared reference `locations`** — `tenant_id` **nullable**: NULL = shared geography every tenant references,
   set = a tenant's own destination/attraction.
 Everything else carries a non-null `tenant_id` and is RLS-forced.
+
+**The NULL-distinct trap (platform / nullable-`tenant_id` rows).** Postgres treats every NULL as distinct in a
+UNIQUE index, so `unique(email, tenant_id)` does **NOT** stop two platform rows (`tenant_id` NULL) sharing an
+email — same for global `permission_settings`, super `user_roles`, shared `locations`. The tenant (non-null)
+shapes are fully enforced; the platform (null) shapes are **not**. Close it explicitly wherever a nullable-
+tenant table has a business unique: `UNIQUE … NULLS NOT DISTINCT` (PG15+) on the pgsql index, OR a **partial
+unique** `… WHERE tenant_id IS NULL` for the platform shape alongside the normal composite, OR `updateOrCreate`
+/ upsert where platform rows are authored. A duplicate global `permission_settings` row makes RBAC resolution
+ambiguous — treat it as a correctness bug.
 
 ## Identity
 - **`users`** — `unique(email, tenant_id)`. **NEVER `unique(email)` alone** — the same email registers

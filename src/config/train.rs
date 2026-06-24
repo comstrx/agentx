@@ -5,14 +5,14 @@ use include_dir::{Dir as Embedded, DirEntry, include_dir};
 use crate::core::error::AppResult;
 use crate::core::support::env::Env;
 use crate::core::support::fs::{Dir, File, Path};
+use crate::core::support::proc::Proc;
 use crate::core::support::text::Text;
 use crate::core::worker::Worker;
 use super::arch::Train;
+use super::consts::CONSULT_TIMEOUT;
 use super::prompts as P;
 
 static INCLUDE: Embedded<'static> = include_dir!("$CARGO_MANIFEST_DIR/include");
-
-const CONSULT_TIMEOUT: u64 = 600;
 
 impl Train {
 
@@ -27,6 +27,12 @@ impl Train {
         Dir::remove(&Self::store());
 
         Self::init()
+
+    }
+
+    pub fn sync () -> AppResult<()> {
+
+        Self::resync(&INCLUDE, &Self::store())
 
     }
 
@@ -58,9 +64,9 @@ impl Train {
 
     }
 
-    pub fn discover ( root: &StdPath, manager: &str, want_type: bool, want_gate: bool ) -> ( Option<String>, Option<String> ) {
+    pub fn discover ( root: &StdPath, manager: &str, want_inspire: bool, want_gate: bool ) -> ( Option<String>, Option<String> ) {
 
-        if !want_type && !want_gate { return ( None, None ); }
+        if !want_inspire && !want_gate { return ( None, None ); }
 
         let model = if manager.trim().is_empty() { "claude" } else { manager.trim() };
         let program = if model.starts_with("codex") { "codex" } else { "claude" };
@@ -70,7 +76,7 @@ impl Train {
         let mut worker = Worker::new(model);
         worker.cwd(root).timeout(CONSULT_TIMEOUT);
 
-        let kind = if want_type {
+        let kind = if want_inspire {
 
             let prompt = P::MANAGER_DISCOVER.replace("{types}", &Self::catalogue());
             Self::ask(&mut worker, prompt).and_then(|body| Self::parse_type(&body))
@@ -154,7 +160,7 @@ impl Train {
 
     fn ask ( worker: &mut Worker, prompt: String ) -> Option<String> {
 
-        let answer = Env::temp_dir().join(format!("agentx-consult-{}.md", std::process::id()));
+        let answer = Env::temp_dir().join(format!("agentx-consult-{}.md", Proc::pid()));
         File::remove(&answer);
 
         let prompt = prompt.replace("{answer}", &Path::display(&answer));
@@ -261,6 +267,33 @@ impl Train {
         }
 
         Ok(())
+
+    }
+
+    fn resync ( dir: &Embedded, base: &StdPath ) -> AppResult<()> {
+
+        for entry in dir.entries() {
+
+            match entry {
+                DirEntry::Dir(sub) => Self::resync(sub, base)?,
+                DirEntry::File(file) => {
+
+                    if Self::is_history(file.path()) { continue; }
+
+                    File::write_bytes(&base.join(file.path()), file.contents())?;
+
+                }
+            }
+
+        }
+
+        Ok(())
+
+    }
+
+    fn is_history ( path: &StdPath ) -> bool {
+
+        path.components().any(|part| part.as_os_str() == "history")
 
     }
 

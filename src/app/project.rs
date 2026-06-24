@@ -1,7 +1,7 @@
 use std::path::{Path as StdPath, PathBuf};
 
 use crate::config::{Config, Context, Paths, Spec, Train};
-use crate::config::consts::{CACHE_GITIGNORE, CONFIG_FILE, DEFAULT_TOML, PHASES};
+use crate::config::consts::{CONFIG_FILE, DEFAULT_TOML, PHASES};
 use crate::core::error::AppResult;
 use crate::core::support::fs::{Dir, File, Path};
 use crate::core::support::text::Text;
@@ -12,10 +12,11 @@ impl Project {
     pub(crate) fn assemble ( root: &StdPath ) -> AppResult<Config> {
 
         let paths = Paths::new(root);
-        let spec = Spec::load(&paths.config_file)?;
-        let context = Self::discover(&paths, &spec.project_type);
+        let document = Spec::document(&paths.config_file)?;
+        let spec = document.project;
+        let context = Self::discover(&paths, &spec);
 
-        Ok(Config { root: root.to_path_buf(), spec, paths, context })
+        Ok(Config { root: root.to_path_buf(), spec, gate: document.gate, agent: document.agent, paths, context, claude: document.claude, codex: document.codex })
 
     }
 
@@ -35,14 +36,6 @@ impl Project {
 
     pub(crate) fn scaffold ( paths: &Paths ) -> AppResult<()> {
 
-        for dir in [&paths.contracts, &paths.skills, &paths.requires] {
-
-            Dir::ensure(dir)?;
-
-        }
-
-        if !Path::exists(&paths.overview) { File::write(&paths.overview, "")?; }
-
         for phase in PHASES {
 
             Dir::ensure(&paths.reports_of(phase))?;
@@ -50,13 +43,11 @@ impl Project {
 
         }
 
-        for dir in [&paths.manager, &paths.inbox, &paths.tasks, &paths.tests, &paths.probes, &paths.prompts] {
+        for dir in [&paths.configs, &paths.manager, &paths.inbox, &paths.tasks, &paths.tests, &paths.probes, &paths.prompts] {
 
             Dir::ensure(dir)?;
 
         }
-
-        if !Path::exists(&paths.gitignore) { File::write(&paths.gitignore, CACHE_GITIGNORE)?; }
 
         if !Path::exists(&paths.config_file) { File::write(&paths.config_file, DEFAULT_TOML)?; }
 
@@ -77,15 +68,16 @@ impl Project {
 
     }
 
-    pub(crate) fn clean ( paths: &Paths ) {
+    pub(crate) fn clear ( paths: &Paths ) {
 
         Dir::clear_files(&paths.cache);
 
     }
 
-    fn discover ( paths: &Paths, kind: &str ) -> Context {
+    fn discover ( paths: &Paths, spec: &Spec ) -> Context {
 
-        let mut context = Self::scan(paths);
+        let mut context = Self::scan(paths, &spec.ignore, &spec.include);
+        let kind = spec.inspire.as_str();
 
         if !kind.is_empty() {
 
@@ -109,15 +101,21 @@ impl Project {
 
     }
 
-    fn scan ( paths: &Paths ) -> Context {
+    fn scan ( paths: &Paths, ignore: &[String], include: &[String] ) -> Context {
 
         let mut context = Context::default();
+        let root = paths.root.as_path();
 
-        for dir in [&paths.root, &paths.docs] {
+        let mut dirs = vec![&paths.root];
+        dirs.extend(&paths.docs);
+
+        for dir in dirs {
 
             for entry in Dir::files(dir) {
 
                 if !Path::has_extension(&entry, "md") { continue; }
+
+                if Self::excluded(&entry, root, ignore, include) { continue; }
 
                 for bucket in Context::buckets_of_stem(&Path::stem_of(&entry).to_ascii_lowercase()) {
 
@@ -129,13 +127,21 @@ impl Project {
 
         }
 
-        for entry in Dir::subdirs(&paths.docs) {
+        for docs in &paths.docs {
 
-            if let Some(bucket) = Context::bucket_of_dir(&Path::name_of(&entry).to_ascii_lowercase()) {
+            for entry in Dir::subdirs(docs) {
 
-                for md in Dir::walk(&entry) {
+                if let Some(bucket) = Context::bucket_of_dir(&Path::name_of(&entry).to_ascii_lowercase()) {
 
-                    if md.is_file() && Path::has_extension(&md, "md") { context.add(bucket, md); }
+                    for md in Dir::walk(&entry) {
+
+                        if md.is_file() && Path::has_extension(&md, "md") && !Self::excluded(&md, root, ignore, include) {
+
+                            context.add(bucket, md);
+
+                        }
+
+                    }
 
                 }
 
@@ -143,9 +149,81 @@ impl Project {
 
         }
 
+        Self::include_extra(&mut context, root, include);
+
         Self::sort(&mut context);
 
         context
+
+    }
+
+    fn excluded ( path: &StdPath, root: &StdPath, ignore: &[String], include: &[String] ) -> bool {
+
+        if Self::path_listed(path, root, include) { return false; }
+
+        Self::path_listed(path, root, ignore)
+
+    }
+
+    fn path_listed ( path: &StdPath, root: &StdPath, list: &[String] ) -> bool {
+
+        list.iter().any(|entry| {
+
+            let entry = entry.trim();
+
+            !entry.is_empty() && path.starts_with(root.join(entry))
+
+        })
+
+    }
+
+    fn include_extra ( context: &mut Context, root: &StdPath, include: &[String] ) {
+
+        for entry in include {
+
+            let entry = entry.trim();
+
+            if entry.is_empty() { continue; }
+
+            let target = root.join(entry);
+
+            if target.is_file() {
+
+                if Path::has_extension(&target, "md") { Self::add_include(context, &target); }
+
+            }
+            else if target.is_dir() {
+
+                for md in Dir::walk(&target) {
+
+                    if md.is_file() && Path::has_extension(&md, "md") { Self::add_include(context, &md); }
+
+                }
+
+            }
+
+        }
+
+    }
+
+    fn add_include ( context: &mut Context, file: &StdPath ) {
+
+        let buckets = Context::buckets_of_stem(&Path::stem_of(file).to_ascii_lowercase());
+
+        if !buckets.is_empty() {
+
+            for bucket in buckets { context.add(bucket, file.to_path_buf()); }
+
+            return;
+
+        }
+
+        let parent = file.parent().map(|dir| Path::name_of(dir).to_ascii_lowercase()).unwrap_or_default();
+
+        match Context::bucket_of_dir(&parent) {
+            Some(bucket) => context.add(bucket, file.to_path_buf()),
+            None => context.add("overview", file.to_path_buf()),
+        }
 
     }
 

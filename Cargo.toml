@@ -1,6 +1,6 @@
 [package]
 name         = "agentx"
-version      = "0.2.0"
+version      = "0.1.0"
 edition      = "2024"
 rust-version = "1.92"
 license      = "AGPL-3.0-only"
@@ -54,3 +54,8 @@ incremental      = false
 [profile.release.build-override]
 opt-level     = 0
 codegen-units = 256
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

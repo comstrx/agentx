@@ -4,7 +4,7 @@ use crate::config::consts::{BUCKET_TITLES, CONTEXT_BUCKETS, CONVERGENCE};
 use crate::config::{Config, Train, prompts as P};
 use crate::core::support::fs::{Dir, Path};
 use crate::core::support::str::Str;
-use super::arch::Compose;
+use super::arch::{Compose, Journey};
 
 impl Compose {
 
@@ -37,6 +37,7 @@ impl Compose {
                 Self::briefing(cfg),
                 P::VERIFY_WORKSPACE.to_string(),
                 P::VERIFY_STRATEGY.to_string(),
+                Self::tests_policy(cfg),
                 P::LAW.to_string(),
                 P::PRIME_STUDY.to_string(),
             ],
@@ -81,7 +82,7 @@ impl Compose {
 
     pub(crate) fn verifier ( cfg: &Config, agent: &str, has_review: bool ) -> String {
 
-        let mut parts = vec![P::VERIFY_WORK.to_string()];
+        let mut parts = vec![P::VERIFY_WORK.to_string(), Self::tests_policy(cfg)];
 
         if has_review { parts.push(P::REVIEW_HANDOFF.to_string()); }
 
@@ -103,9 +104,9 @@ impl Compose {
 
     }
 
-    pub(crate) fn manager_intake ( cfg: &Config ) -> String {
+    pub(crate) fn manager_intake ( cfg: &Config, journey: &Journey ) -> String {
 
-        let kind = &cfg.spec.project_type;
+        let kind = &cfg.spec.inspire;
 
         let mut sources = if kind.is_empty() { Vec::new() } else { Train::requires(kind) };
         sources.extend(cfg.context.requires.iter().cloned());
@@ -118,9 +119,32 @@ impl Compose {
         let pairs = vec![
             ( "sources", list ),
             ( "requires", Self::rel(&cfg.paths.inbox, &cfg.root) ),
+            ( "state", Self::intake_state(cfg, journey) ),
         ];
 
         Self::render(&[P::MANAGER_INTAKE.to_string()], &pairs)
+
+    }
+
+    fn intake_state ( cfg: &Config, journey: &Journey ) -> String {
+
+        let backlog = Dir::markdown(&cfg.paths.inbox).len();
+        let tasks = Dir::markdown(&cfg.paths.tasks).len();
+        let requires = Self::rel(&cfg.paths.inbox, &cfg.root);
+        let tasks_dir = Self::rel(&cfg.paths.tasks, &cfg.root);
+
+        let mode = match backlog > 0 || tasks > 0 {
+            true => format!("RESUME — an earlier run already advanced this journey (phase {:?}, status {:?}). It will continue from where it stopped; you are NOT starting over.", journey.phase, journey.status),
+            false => "FRESH — no backlog or tasks exist yet; you are creating the backlog for the first time.".to_string(),
+        };
+
+        format!(
+            "RUN STATE — read before writing anything:\n\
+            - Mode: {mode}\n\
+            - Requirement files already in {requires}/: {backlog}.\n\
+            - Task files already in {tasks_dir}/: {tasks}.\n\
+            If a backlog already exists, intake has run before: READ every existing file first, CONTINUE the numbering, and do NOT recreate, renumber, or rewrite a requirement already captured — the architects may already have built tasks from it, so changing it now would break the run. Add ONLY genuinely-missing requirements; if the backlog is already complete and correct for the sources, change nothing and stop."
+        )
 
     }
 
@@ -135,14 +159,17 @@ impl Compose {
 
         let counter = format!("Review round {round} of at most {}.", cfg.spec.max_rounds);
 
-        let parts = vec![
+        let mut parts = vec![
             P::MANAGER_ROLE.to_string(),
             counter,
             P::MANAGER_INTEGRATION.to_string(),
             body.to_string(),
-            P::MANAGER_FLAG.to_string(),
-            P::MANAGER_VERDICT.to_string(),
         ];
+
+        if phase == "tests" { parts.push(Self::tests_policy(cfg)); }
+
+        parts.push(P::MANAGER_FLAG.to_string());
+        parts.push(P::MANAGER_VERDICT.to_string());
 
         Self::render(&parts, &Self::values(cfg, phase, "manager", task))
 
@@ -195,6 +222,15 @@ impl Compose {
     fn rel ( path: &StdPath, root: &StdPath ) -> String {
 
         Path::relative_one(path, root)
+
+    }
+
+    fn tests_policy ( cfg: &Config ) -> String {
+
+        match cfg.spec.tests {
+            true => P::TESTS_REAL.to_string(),
+            false => P::TESTS_SCRATCH.to_string(),
+        }
 
     }
 

@@ -39,9 +39,7 @@ class BaseRepository {
 
     use HasBaseRepository;
 
-    public function __construct ( protected Model $model ) {
-
-    }
+    public function __construct ( protected Model $model ) {}
 
 }
 ```
@@ -57,7 +55,6 @@ class CategoryRepository extends BaseRepository {
         parent::__construct($model);
 
     }
-    /** @return array<string, mixed> */
     public function fields ( array $data = [] ): array {
 
         return [

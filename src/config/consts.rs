@@ -1,7 +1,8 @@
-pub const CONFIG_FILE: &str = "Agentx.toml";
-pub const DOCS_DIR: &str    = "agents";
-pub const CACHE_DIR: &str   = ".agentx";
-pub const CONVERGENCE: &str = "ship it";
+pub const CONVERGENCE: &str    = "ship it";
+
+pub const CACHE_DIR: &str      = ".agentx";
+pub const CONFIG_FILE: &str    = "Agentx.toml";
+pub const DOCS_DIRS: [&str; 2] = ["agentx", "agents"];
 
 pub const PHASES: [&str; 3]  = ["requires", "tasks", "tests"];
 pub const BUCKETS: [&str; 5] = ["overview", "contracts", "skills", "history", "requires"];
@@ -30,22 +31,46 @@ pub const BUCKET_DIRS: [(&str, &[&str]); 4] = [
 
 pub const CONTEXT_BUCKETS: [&str; 4] = ["overview", "contracts", "skills", "history"];
 
-pub const MAX_ROUNDS: u32     = 5;
-pub const MAX_FIXES: u32      = 5;
-pub const GATE_TIMEOUT: u64   = 900;
-pub const MANAGER_MODEL: &str = "claude";
-pub const DEFAULT_MODEL: &str = "claude";
+pub const FRAMES: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+pub const MAX_ROUNDS: u32      = 5;
+pub const MAX_FIXES: u32       = 5;
+pub const AGENT_RETRIES: u32   = 2;
+pub const GATE_TIMEOUT: u64    = 900;
+pub const AGENT_TIMEOUT: u64   = 10000;
+pub const CONSULT_TIMEOUT: u64 = 600;
+pub const PROBE_TIMEOUT: u64   = 15;
+
+pub const MANAGER_MODEL: &str  = "claude";
+pub const DEFAULT_MODEL: &str  = "claude";
+
+pub const CLAUDE_MODEL: &str  = "opus";
+pub const CLAUDE_EFFORT: &str = "max";
+pub const CODEX_MODEL: &str   = "gpt-5-codex";
+pub const CODEX_EFFORT: &str  = "high";
 
 pub const DEFAULT_TOML: &str = r#"[project]
-project_type     = ""
-max_rounds       = 5
-max_fixes        = 5
-gate_cmd         = ""
-gate_timeout     = 900
-manager_model    = "claude"
-architect_models = [ "claude" ]
-executor_models  = [ "claude" ]
-tester_models    = [ "claude" ]
-"#;
+inspire    = ""
+tests      = true
+max_rounds = 5
+max_fixes  = 5
 
-pub const CACHE_GITIGNORE: &str = "*\n";
+[gate]
+timeout = 900
+command = ""
+
+[agent]
+timeout    = 10000
+manager    = "claude"
+architects = [ "claude" ]
+executors  = [ "claude" ]
+testers    = [ "claude" ]
+
+[claude]
+model  = "opus"
+effort = "max"
+
+[codex]
+model  = "gpt-5-codex"
+effort = "high"
+"#;

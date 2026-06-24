@@ -31,8 +31,9 @@ piece.
 
 ## Facade shadowing
 Support facades intentionally shadow Illuminate equivalents: `Str`, `Arr`, `Cache`, `Date`, `Log`, `Mail`,
-`Queue`, `Storage`, `Http`, `Request`, `Response`, `Context`. **Never alias-import both Illuminate's and ours
-in the same file** — pick one, fully-qualify the other if truly needed.
+`Queue`, `Storage`, `Http`, `Request`, `Response`, `Context`. Prefer ours. When a file genuinely needs both,
+**import both and alias the Illuminate one with `as`** (`use Illuminate\Support\Str as IlluminateStr;`) — never
+fully-qualify it inline (`style.md`: no FQCN in code).
 
 ## Routes & resources
 - Resource route segment = **plural snake_case** of the resource (`products`, `commission_rules`), following

@@ -79,6 +79,17 @@ impl Path {
 
     }
 
+    pub fn relativize ( root: &StdPath, base: &StdPath, input: &StdPath ) -> String {
+
+        let abs = if input.is_absolute() { input.to_path_buf() } else { base.join(input) };
+        let abs = abs.canonicalize().unwrap_or(abs);
+
+        let rel = abs.strip_prefix(root).unwrap_or(&abs);
+
+        rel.to_string_lossy().replace('\\', "/")
+
+    }
+
     pub fn shorten ( path: &StdPath, root: &StdPath, home: &StdPath ) -> String {
 
         if let Ok(rest) = path.strip_prefix(root) { return rest.to_string_lossy().into_owned(); }

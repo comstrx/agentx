@@ -1,11 +1,26 @@
 use std::{thread, io::Read, path::Path as StdPath, time::Instant, process::{Command, Stdio}, os::unix::process::CommandExt};
+use std::sync::atomic::{AtomicBool, Ordering};
 use nix::{unistd::Pid, sys::signal::{kill, killpg, Signal}};
 
 use crate::core::error::AppResult;
 use crate::core::support::fs::File;
 use super::arch::{Output, Proc, POLL};
 
+static ABORT: AtomicBool = AtomicBool::new(false);
+
 impl Proc {
+
+    pub fn request_abort () {
+
+        ABORT.store(true, Ordering::SeqCst);
+
+    }
+
+    pub fn aborted () -> bool {
+
+        ABORT.load(Ordering::SeqCst)
+
+    }
 
     pub fn run ( mut command: Command, timeout: u64, on_spawn: Option<&dyn Fn(i32)> ) -> AppResult<Output> {
 
@@ -56,6 +71,16 @@ impl Proc {
 
                 }
                 None => {
+
+                    if Self::aborted() {
+
+                        let _ = killpg(Pid::from_raw(pid), Signal::SIGKILL);
+                        let _ = child.wait();
+
+                        code = 130;
+                        break;
+
+                    }
 
                     if timeout > 0 && started.elapsed().as_secs() >= timeout {
 
@@ -114,9 +139,28 @@ impl Proc {
 
     }
 
+    pub fn detach ( mut command: Command, log: &StdPath ) -> AppResult<i32> {
+
+        let out = std::fs::File::create(log)?;
+        let err = out.try_clone()?;
+
+        command.stdin(Stdio::null()).stdout(out).stderr(err).process_group(0);
+
+        let child = command.spawn()?;
+
+        Ok(child.id() as i32)
+
+    }
+
+    pub fn pid () -> u32 {
+
+        std::process::id()
+
+    }
+
     pub fn write_pid ( path: &StdPath ) -> AppResult<()> {
 
-        File::write(path, &std::process::id().to_string())
+        File::write(path, &Self::pid().to_string())
 
     }
 

@@ -12,10 +12,22 @@ pub enum Backend {
     Codex(Codex),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Fault {
+    Transient,
+    Session,
+    Exhausted,
+    Fatal,
+}
+
 pub struct Claude {
     pub(crate) session: Option<String>,
+    pub(crate) model:   String,
+    pub(crate) effort:  String,
 }
 
 pub struct Codex {
     pub(crate) session: Option<String>,
+    pub(crate) model:   String,
+    pub(crate) effort:  String,
 }

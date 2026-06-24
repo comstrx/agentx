@@ -4,36 +4,65 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Spec {
-    pub project_type: String,
+    pub inspire: String,
+    #[serde(deserialize_with = "Spec::de_tests")]
+    pub tests: bool,
     pub max_rounds: u32,
     pub max_fixes: u32,
-    pub gate_cmd: String,
-    pub gate_timeout: u64,
-    pub manager_model: String,
-    pub architect_models: Vec<String>,
-    pub executor_models: Vec<String>,
-    pub tester_models: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ignore: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub include: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+pub(crate) struct TestsFlag;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Gate {
+    pub timeout: u64,
+    pub command: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Agent {
+    pub timeout: u64,
+    pub manager: String,
+    pub architects: Vec<String>,
+    pub executors: Vec<String>,
+    pub testers: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Document {
     #[serde(default)]
     pub project: Spec,
+    #[serde(default)]
+    pub gate: Gate,
+    #[serde(default)]
+    pub agent: Agent,
+    #[serde(default)]
+    pub claude: Engine,
+    #[serde(default)]
+    pub codex: Engine,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Engine {
+    pub model: String,
+    pub effort: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct Paths {
     pub root: PathBuf,
-    pub docs: PathBuf,
+    pub docs: Vec<PathBuf>,
     pub cache: PathBuf,
-
-    pub overview: PathBuf,
-    pub contracts: PathBuf,
-    pub skills: PathBuf,
-    pub requires: PathBuf,
+    pub configs: PathBuf,
 
     pub config_file: PathBuf,
-    pub gitignore: PathBuf,
 
     pub state: PathBuf,
     pub pid: PathBuf,
@@ -65,8 +94,12 @@ pub struct Context {
 pub struct Config {
     pub root: PathBuf,
     pub spec: Spec,
+    pub gate: Gate,
+    pub agent: Agent,
     pub paths: Paths,
     pub context: Context,
+    pub claude: Engine,
+    pub codex: Engine,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

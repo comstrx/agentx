@@ -23,9 +23,12 @@ impl Text {
 
     fn strip_prefix_ci <'a> ( text: &'a str, prefix: &str ) -> Option<&'a str> {
 
-        if text.len() >= prefix.len() && text[..prefix.len()].eq_ignore_ascii_case(prefix) {
+        let bytes = text.as_bytes();
+        let head = prefix.as_bytes();
 
-            Some(text[prefix.len()..].trim())
+        if bytes.len() >= head.len() && bytes[..head.len()].eq_ignore_ascii_case(head) {
+
+            Some(text[head.len()..].trim())
 
         }
         else {

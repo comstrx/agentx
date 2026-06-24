@@ -47,6 +47,9 @@ right index, lead with `tenant_id`, prove it with `EXPLAIN`, and reach for the r
 - **Too many indexes slow writes** — every index is maintained on every write. Index what you query, not
   everything.
 - **Composite column order matters** — wrong order = no leftmost-prefix benefit.
+- **NULL is distinct in a UNIQUE index** — `unique(email, tenant_id)` does NOT prevent duplicates when
+  `tenant_id` is NULL (platform rows); Postgres counts each NULL as unique. Use `NULLS NOT DISTINCT` (PG15+) or
+  a partial unique `… WHERE tenant_id IS NULL` for the nullable-tenant shapes (`data.md`).
 
 ## Extensions worth knowing
 - **pgcrypto** — `gen_random_uuid()`, `digest()`/`crypt()`. (App generates **UUIDv7**; pgcrypto for hashing/db-side.)

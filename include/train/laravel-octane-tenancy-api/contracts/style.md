@@ -21,7 +21,9 @@ the **reference hand** — read and mirror them. Match it exactly, every line. R
   from the method block by **ONE blank line** (a blank line may also separate distinct declaration groups). The
   class also breathes: blank line after the opening `{` and before the closing `}`.
 - **NEVER a one-line function/method body** — always the multi-line breathing form, even for a single
-  statement or an empty body. No `function x () { return $y; }`, no `) {}`.
+  statement. No `function x () { return $y; }`. **The ONE exception is an empty constructor that exists only to
+  promote properties** (see "Promoted constructors" below): it uses the collapsed `) {}`, never an empty
+  breathing body.
 - `namespace` then `use` lines immediately (no blank line between); blank line before the class.
 - Multiple properties on one line may share a modifier (`protected array $scopes = [], $permissions = [];`).
   Align `=>` in multi-line array literals.
@@ -94,19 +96,52 @@ class CategoryRequest extends BaseRequest {
 }
 ```
 
-## Comments & PHPDoc
-- **Zero prose comments.** No explanatory comments, no section banners, no `// TODO`, except absolute necessity
-  (a genuinely non-obvious invariant). If code needs a comment to be understood, rename and restructure until
-  it doesn't.
-- **PHPDoc is typing, not prose.** DELETE any docblock the native type already expresses
-  (`/** @return string */`, `/** @param string $x */` are pure noise). KEEP ONLY what PHP cannot express:
-  `list<…>`, `array<K, V>`, `non-empty-string`, `class-string<T>`, `@template T` + generic `@param`/`@return T`.
-- **Load-bearing test for a kept tag:** remove it, run the gate. Still green → it was noise, leave it out.
-  Errors (`return.type`/`argument.type`) → it was a real contract, keep it.
-- **Array/iterable RETURNS are always documented** (mandatory — exempt from the load-bearing test): every
-  method whose return type is `array` carries a one-line shape tag — `/** @return list<string> */`,
-  `/** @return array<string, mixed> */`, `/** @return array{…} */`. `missingType.iterableValue` stays
-  suppressed for **params**; array **returns** are always typed (`/** @return array<mixed> */` when genuinely open).
+## Promoted constructors
+A constructor that **only promotes properties** (zero statements in the body) is written with a collapsed empty
+body `) {}` — NEVER an empty breathing body `) {\n\n}`. This is the canonical shape for value objects, DTOs
+(`Comments…` below: fixed-shape data is a DTO, not an array), and thin base-shell wiring.
+- **Short — one line:**
+```php
+public function __construct ( public readonly string $email, public readonly ?string $name = null ) {}
+```
+- **Long — one promoted param per line, then `) {}`:**
+```php
+public function __construct (
+    public readonly string $email,
+    public readonly ?string $name = null,
+) {}
+```
+A thin base shell follows the same rule (`public function __construct ( protected Model $model ) {}`). The
+**moment the constructor has a body** (even one statement, e.g. `parent::__construct($model);`) it reverts to
+the normal multi-line breathing form — the collapsed `) {}` is *only* for the genuinely empty body.
+
+## Comments, PHPDoc, strict_types & imports
+- **Zero comments — absolute.** No prose, no section banners, no `// TODO`, no `/* */`, no `#`. Never explain
+  code with words; rename and restructure until it explains itself. Write a comment ONLY when the owner
+  **explicitly** asks for one in this task.
+- **Zero PHPDoc by default — a docblock is a gate concession, never documentation.** It is permitted ONLY when a
+  static-analysis config exists in the project (`phpstan.neon`/`psalm.xml`) AND that config does **not** suppress
+  the missing-type identifiers that would otherwise fail without the tag. Decision procedure, every file:
+  1. **No analyzer config, OR it ignores both `missingType.iterableValue` and `missingType.generics`** (or sets
+     the equivalent `checkMissingIterableValueType: false` / generics-off) → **write NO docblock at all.** The
+     native type hints stand alone.
+  2. **Analyzer present and does NOT ignore them** → write ONLY the minimal tag the gate fails without
+     (`list<…>`, `array<K, V>`, `array{…}`, `class-string<T>`, `@template T`). Never a tag the native type
+     already says (`/** @return string */` is always banned).
+- **Load-bearing test (only under case 2):** add the tag, remove it, run the gate. Green without it → it was
+  noise, leave it out. Red (`return.type`/`argument.type`/`missingType.*`) → it was a real contract, keep it.
+  Never add a tag "for clarity".
+- **Fixed-shape data is a type, not an array.** Do not return associative/fixed-key arrays as pseudo-DTOs to
+  dodge a shape doc — model it as a `readonly` DTO object, an enum, or a value object so the native type system
+  verifies the shape. Associative arrays are only for genuinely open/dynamic maps.
+- **`declare(strict_types=1);` is mandatory and NEVER removed** — it is a runtime safety switch (fail-fast on
+  type coercion at call/return boundaries, the same fail-closed spirit as the rest of the system), not
+  decoration. A PHP file without it is a defect, regardless of analyzer settings.
+- **No fully-qualified class names inside code.** Never write `\Illuminate\…\CursorPaginator` in a signature,
+  property, return type, or body. `use` every class at the **top** of the file and reference the short name; on
+  a name collision alias one with `use … as …` (`use Illuminate\Support\Str as IlluminateStr;`). The only inline
+  `\` allowed is a leading global-namespace builtin call where importing is pointless (`\count`, `\is_array`) —
+  and those still follow native-call spacing.
 
 ## Discipline
 Match the surrounding file's exact spacing and idiom before adding to it — **read neighbours first.** No

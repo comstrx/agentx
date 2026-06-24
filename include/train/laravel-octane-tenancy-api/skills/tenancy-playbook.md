@@ -33,10 +33,16 @@ protected static function bootHasTenant (): void {
 **2. Postgres RLS (defense-in-depth, DB-enforced).** Catches what code forgets:
 - App connects as a **non-owner** role (table owners bypass RLS — never connect as owner).
 - `ALTER TABLE x ENABLE ROW LEVEL SECURITY; ALTER TABLE x FORCE ROW LEVEL SECURITY;`
-- Policy: `USING (tenant_id = current_setting('app.tenant_id', true)::uuid)` (the `true` = don't error if unset).
 - Set the GUC **transaction-local**: `set_config('app.tenant_id', ?, true)` at request/job start. **NEVER**
   `SET app.tenant_id` (session-level) — under Octane the DB connection is reused across requests, so a session
   GUC bleeds into the next tenant. Transaction-local (`true`) is the only safe form.
+- **Handle the empty / `super` GUC — `''::uuid` THROWS.** For a `super` / no-tenant request the GUC is unset or
+  empty; `current_setting('app.tenant_id', true)` returns `''`, and `''::uuid` is a hard Postgres error that
+  breaks *every* query on the table. Apply both fixes: (a) NEVER set the GUC to `''` — set the nil sentinel, or
+  leave it unset for `super`; (b) harden the policy to tolerate the empty GUC and admit platform rows:
+  `USING (tenant_id IS NULL OR tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)`. Without
+  this, RLS passes on sqlite/in-memory tests and detonates the first time it runs on Postgres — a silent,
+  latent break the gate won't catch if tests don't run on pgsql.
 
 ## Carrying the tenant everywhere
 - **Jobs:** stamp `tenant_id` into the payload on dispatch; restore `Context` at `handle()` start; reset on
@@ -45,6 +51,22 @@ protected static function bootHasTenant (): void {
   tenant B.
 - **`super`:** the only cross-tenant role. Reads span tenants; writes target a **validated** `tenant_id` from
   the body. Bypass is an **audited** `withoutTenancy()` helper only — never an ambient default, never left on.
+
+## Reading tenant + platform rows together (the sanctioned cross-cut)
+Some `HasTenant` models legitimately must read **their tenant's rows AND the platform's NULL-`tenant_id` rows**
+in one query — the RBAC resolver reading a tenant's `permission_settings` plus the `scope=global` (NULL)
+defaults, or a query over shared `locations`. The global scope hides the NULL rows, and `withoutTenancy()` is
+**`super`-only** (the wrong tool — it would expose ALL tenants). The correct, leak-safe pattern is an explicit
+two-sided filter:
+```php
+Model::withoutGlobalScope('tenant')->where(function ( Builder $q ): void {
+
+    $q->where('tenant_id', Context::tenantId())->orWhereNull('tenant_id');
+
+})->get();
+```
+It returns ONLY this tenant's rows + shared platform rows, **never** another tenant's. Reserve it for models
+that genuinely carry platform/global rows; never use it to dodge the scope on ordinary tenant data.
 
 ## The leak vectors — hunt every one
 1. **Unscoped query** — `withoutGlobalScope`, raw `DB::`, or query builder on a table whose model lacks the

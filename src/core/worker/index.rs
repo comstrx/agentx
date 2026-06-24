@@ -8,9 +8,33 @@ use crate::core::support::fs::File;
 use crate::core::support::proc::Proc;
 use crate::core::support::str::Str;
 use crate::core::support::text::Text;
-use super::arch::{Worker, Backend};
+use super::arch::{Worker, Backend, Fault};
 
 impl Worker {
+
+    pub fn fault ( error: &AppError ) -> Fault {
+
+        let text = match error {
+            AppError::Timeout { .. } => return Fault::Transient,
+            AppError::Command { stderr, .. } => stderr.to_lowercase(),
+            other => other.to_string().to_lowercase(),
+        };
+
+        if Self::names(&text, &["usage limit", "quota", "credit", "billing", "insufficient", "payment", "out of credits", "exceeded your"]) { return Fault::Exhausted; }
+
+        if Self::names(&text, &["no conversation", "conversation not found", "session not found", "no session", "unknown session", "invalid session", "could not resume", "no such session", "resume"]) { return Fault::Session; }
+
+        if Self::names(&text, &["api key", "unauthorized", "authentication", "not logged in", " 401", " 403", "invalid model", "model not found", "unknown model", "no such model", "permission denied", "forbidden", "no such file", "executable file not found", "command not found", "cannot find"]) { return Fault::Fatal; }
+
+        Fault::Transient
+
+    }
+
+    fn names ( text: &str, needles: &[&str] ) -> bool {
+
+        needles.iter().any(|needle| text.contains(needle))
+
+    }
 
     pub fn new ( model: &str ) -> Self {
 
@@ -21,6 +45,17 @@ impl Worker {
     pub fn set_model ( &mut self, model: &str ) -> &mut Self {
 
         self.backend = Backend::select(model);
+
+        self
+
+    }
+
+    pub fn engine ( &mut self, model: &str, effort: &str ) -> &mut Self {
+
+        match &mut self.backend {
+            Backend::Claude(agent) => agent.configure(model, effort),
+            Backend::Codex(agent) => agent.configure(model, effort),
+        }
 
         self
 

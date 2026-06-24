@@ -1,17 +1,16 @@
 use std::collections::HashMap;
 use std::path::Path as StdPath;
+use std::time::Duration;
 
-use crate::config::consts::PHASES;
+use crate::config::consts::{AGENT_RETRIES, PHASES};
 use crate::config::{Config, Train};
 use crate::core::error::{AppError, AppResult};
 use crate::core::support::fs::{Dir, File, Path};
 use crate::core::support::parse::Json;
 use crate::core::support::proc::Proc;
 use crate::core::support::text::Text;
-use crate::core::worker::Worker;
+use crate::core::worker::{Fault, Worker};
 use super::arch::{Compose, Flow, Halt, Journey, Orchestrator, Phase, Project, Status, Ui};
-
-const WORKER_TIMEOUT: u64 = 0;
 
 impl<'a> Orchestrator<'a> {
 
@@ -45,7 +44,33 @@ impl<'a> Orchestrator<'a> {
                 Ok(())
 
             }
+            Err(Halt::Stopped) => {
+
+                Ui::blank();
+                Ui::warn(&format!("interrupted — stopped at phase {:?}, round {}; state saved, `start` resumes", self.journey.phase, self.journey.current_round));
+                Ui::blank();
+
+                Ok(())
+
+            }
             Err(Halt::Failed(error)) => {
+
+                if Proc::aborted() {
+
+                    if !self.journey.journey_id.is_empty() {
+
+                        self.journey.status = Status::Stopped;
+                        let _ = self.journey.save(&self.cfg.paths.state);
+
+                    }
+
+                    Ui::blank();
+                    Ui::warn(&format!("interrupted — stopped at phase {:?}, round {}; state saved, `start` resumes", self.journey.phase, self.journey.current_round));
+                    Ui::blank();
+
+                    return Ok(());
+
+                }
 
                 if !self.journey.journey_id.is_empty() {
 
@@ -63,18 +88,8 @@ impl<'a> Orchestrator<'a> {
 
     fn boot ( &self ) {
 
-        let spec = &self.cfg.spec;
-
-        let kind = if spec.project_type.is_empty() { "(unbound)".to_string() } else { spec.project_type.clone() };
-        let gate = if spec.gate_cmd.trim().is_empty() { "(none — gate skipped)".to_string() } else { spec.gate_cmd.clone() };
-
-        let team = format!(
-            "architects [{}] · executors [{}] · testers [{}] · manager {}",
-            spec.roster("requires").join(" "),
-            spec.roster("tasks").join(" "),
-            spec.roster("tests").join(" "),
-            self.cfg.manager(),
-        );
+        let kind = if self.cfg.spec.inspire.is_empty() { "(unbound)".to_string() } else { self.cfg.spec.inspire.clone() };
+        let gate = if self.cfg.gate.command.is_empty() { "(none — gate skipped)".to_string() } else { self.cfg.gate.command.clone() };
 
         Ui::blank();
         Ui::title("agentx · orchestration server");
@@ -82,8 +97,13 @@ impl<'a> Orchestrator<'a> {
         Ui::step("starting up — readying the team and the pipeline");
         Ui::field("project", &Path::display(&self.cfg.root));
         Ui::field("type", &kind);
-        Ui::field("team", &team);
         Ui::field("gate", &gate);
+        Ui::field("team", "");
+        Ui::role("manager", self.cfg.manager());
+        Ui::role("architects", &self.cfg.roster("requires").join(" "));
+        Ui::role("executors", &self.cfg.roster("tasks").join(" "));
+        Ui::role("testers", &self.cfg.roster("tests").join(" "));
+        Ui::blank();
 
     }
 
@@ -159,7 +179,7 @@ impl<'a> Orchestrator<'a> {
 
         for phase in PHASES {
 
-            let roster = self.cfg.spec.roster(phase);
+            let roster = self.cfg.roster(phase);
             let role = Self::role_of(phase);
 
             for agent in &roster {
@@ -184,7 +204,7 @@ impl<'a> Orchestrator<'a> {
 
         for phase in PHASES {
 
-            let roster = self.cfg.spec.roster(phase);
+            let roster = self.cfg.roster(phase);
 
             for agent in &roster {
 
@@ -229,8 +249,8 @@ impl<'a> Orchestrator<'a> {
         Ui::arrow(0, "the manager is analysing the discovered requirements");
 
         let model = self.cfg.manager().to_string();
-        let prompt = Compose::manager_intake(self.cfg);
-        self.call("manager", &model, &prompt)?;
+        let prompt = Compose::manager_intake(self.cfg, &self.journey);
+        self.deliver("manager", &model, "", 0, &prompt)?;
         self.check_drain()?;
 
         let authored = Dir::markdown(&self.cfg.paths.inbox);
@@ -261,7 +281,7 @@ impl<'a> Orchestrator<'a> {
 
     fn sources ( &self ) -> Vec<std::path::PathBuf> {
 
-        let kind = &self.cfg.spec.project_type;
+        let kind = &self.cfg.spec.inspire;
 
         let mut sources = if kind.is_empty() { Vec::new() } else { Train::requires(kind) };
         sources.extend(self.cfg.context.requires.iter().cloned());
@@ -276,7 +296,7 @@ impl<'a> Orchestrator<'a> {
 
         Ui::rule("phase 1/3 · requires · architects shape the task plan");
 
-        let roster = self.cfg.spec.roster("requires");
+        let roster = self.cfg.roster("requires");
         let shipped = self.run_phase("requires", &roster, None)?;
 
         if shipped {
@@ -315,7 +335,7 @@ impl<'a> Orchestrator<'a> {
         }
 
         let total = tasks.len();
-        let roster = self.cfg.spec.roster("tasks");
+        let roster = self.cfg.roster("tasks");
 
         for ( index, task ) in tasks.iter().enumerate() {
 
@@ -331,6 +351,8 @@ impl<'a> Orchestrator<'a> {
             Ui::beat(1, &format!("task {}/{total} · {name}", index + 1));
 
             self.journey.current_task = name.clone();
+            self.journey.current_round = 0;
+            self.journey.agents_done.clear();
             self.journey.task_status.insert(name.clone(), "executing".to_string());
             self.save("task:start")?;
 
@@ -351,6 +373,8 @@ impl<'a> Orchestrator<'a> {
 
             }
 
+            Ui::blank();
+
             self.journey.current_task.clear();
             self.save("task:done")?;
 
@@ -366,7 +390,7 @@ impl<'a> Orchestrator<'a> {
 
         Ui::rule("phase 3/3 · tests · verifiers attack the finished result");
 
-        let roster = self.cfg.spec.roster("tests");
+        let roster = self.cfg.roster("tests");
         let shipped = self.run_phase("tests", &roster, None)?;
 
         if shipped {
@@ -395,7 +419,7 @@ impl<'a> Orchestrator<'a> {
 
         let model = self.cfg.manager().to_string();
         let prompt = Compose::manager_summary(self.cfg);
-        self.call("manager", &model, &prompt)?;
+        self.deliver("manager", &model, "", 0, &prompt)?;
 
         let summary = File::read(&self.cfg.paths.summary());
         let has_summary = !summary.trim().is_empty();
@@ -429,7 +453,7 @@ impl<'a> Orchestrator<'a> {
             value => value,
         };
 
-        let kind = &self.cfg.spec.project_type;
+        let kind = &self.cfg.spec.inspire;
 
         if kind.is_empty() {
 
@@ -452,6 +476,8 @@ impl<'a> Orchestrator<'a> {
         let depth = if task.is_some() { 2 } else { 1 };
         let max = self.cfg.spec.max_rounds;
         let mut round = 0;
+
+        self.journey.current_round = 0;
 
         loop {
 
@@ -551,8 +577,9 @@ impl<'a> Orchestrator<'a> {
         self.journey.current_agent = agent.to_string();
         self.archive_report(phase, agent, task)?;
 
+        let depth = if task.is_some() { 3 } else { 2 };
         let key = Self::key(phase, agent);
-        self.call(&key, agent, prompt)?;
+        self.deliver(&key, agent, phase, depth, prompt)?;
 
         self.journey.last_action = format!("{phase}_report_written");
         self.save("report")?;
@@ -579,12 +606,15 @@ impl<'a> Orchestrator<'a> {
 
     }
 
-    fn call ( &mut self, key: &str, agent: &str, prompt: &str ) -> Flow<()> {
+    fn dispatch ( &mut self, key: &str, agent: &str, prompt: &str ) -> AppResult<()> {
 
         self.dump_prompt(key, prompt)?;
 
+        let ( model, effort ) = self.cfg.engine(agent);
+
         let mut runner = Worker::new(agent);
-        runner.cwd(&self.cfg.root).timeout(WORKER_TIMEOUT).pid_file(&self.cfg.paths.active);
+        runner.cwd(&self.cfg.root).timeout(self.cfg.agent.timeout).pid_file(&self.cfg.paths.active);
+        runner.engine(&model, &effort);
 
         if let Some(session) = self.sessions.get(key) && !session.is_empty() {
 
@@ -605,19 +635,174 @@ impl<'a> Orchestrator<'a> {
 
     }
 
+    fn call ( &mut self, key: &str, agent: &str, prompt: &str ) -> Flow<()> {
+
+        let mut tries = 0;
+
+        loop {
+
+            self.check_drain()?;
+
+            let error = match self.dispatch(key, agent, prompt) {
+                Ok(()) => return Ok(()),
+                Err(error) => error,
+            };
+
+            self.check_drain()?;
+
+            tries += 1;
+
+            if Worker::fault(&error) == Fault::Transient && tries <= AGENT_RETRIES {
+
+                Ui::bang(1, &format!("{agent} — hiccup ({}); retrying {tries}/{AGENT_RETRIES}", Self::reason(&error)));
+                self.backoff(tries)?;
+
+                continue;
+
+            }
+
+            Ui::cross(1, &format!("{agent} failed to initialise — {}; stopping", Self::reason(&error)));
+
+            return Err(Halt::Failed(error));
+
+        }
+
+    }
+
+    fn deliver ( &mut self, key: &str, agent: &str, phase: &str, depth: usize, prompt: &str ) -> Flow<()> {
+
+        let mut tries = 0;
+        let mut reprimed = false;
+
+        loop {
+
+            self.check_drain()?;
+
+            let error = match self.dispatch(key, agent, prompt) {
+                Ok(()) => return Ok(()),
+                Err(error) => error,
+            };
+
+            self.check_drain()?;
+
+            match Worker::fault(&error) {
+                Fault::Exhausted => {
+
+                    Ui::cross(depth, &format!("{agent} — provider usage/quota exhausted; stopping, `start` resumes once it resets"));
+
+                    return Err(Halt::Failed(error));
+
+                }
+                Fault::Fatal => {
+
+                    Ui::cross(depth, &format!("{agent} — unrecoverable: {}; stopping", Self::reason(&error)));
+
+                    return Err(Halt::Failed(error));
+
+                }
+                Fault::Transient => {
+
+                    tries += 1;
+
+                    if tries <= AGENT_RETRIES {
+
+                        Ui::bang(depth, &format!("{agent} — hiccup ({}); retrying {tries}/{AGENT_RETRIES}", Self::reason(&error)));
+                        self.backoff(tries)?;
+
+                        continue;
+
+                    }
+
+                }
+                Fault::Session => {}
+            }
+
+            if reprimed {
+
+                Ui::cross(depth, &format!("{agent} — did not recover after re-priming; stopping ({})", Self::reason(&error)));
+
+                return Err(Halt::Failed(error));
+
+            }
+
+            Ui::bang(depth, &format!("{agent} — recovering on a fresh session: re-train, confirm, then resume"));
+
+            self.reprime(key, agent, phase)?;
+
+            reprimed = true;
+            tries = 0;
+
+        }
+
+    }
+
+    fn reprime ( &mut self, key: &str, agent: &str, phase: &str ) -> Flow<()> {
+
+        self.sessions.remove(key);
+        self.persist_sessions()?;
+
+        let brief = if key == "manager" {
+
+            Compose::manager_brief(self.cfg)
+
+        }
+        else {
+
+            Compose::prime(self.cfg, phase, agent)
+
+        };
+
+        self.call(key, agent, &brief)?;
+
+        let label = if key == "manager" { "manager" } else { agent };
+
+        let confirm = Compose::reaffirm(label);
+
+        self.call(key, agent, &confirm)
+
+    }
+
+    fn backoff ( &self, attempt: u32 ) -> Flow<()> {
+
+        let seconds = ( 1u64 << attempt.min(4) ).min(15);
+
+        for _ in 0..seconds {
+
+            if Proc::aborted() { return Err(Halt::Stopped); }
+
+            std::thread::sleep(Duration::from_secs(1));
+
+        }
+
+        Ok(())
+
+    }
+
+    fn reason ( error: &AppError ) -> String {
+
+        let raw = match error {
+            AppError::Timeout { secs, .. } => return format!("timed out after {secs}s"),
+            AppError::Command { stderr, .. } if !stderr.trim().is_empty() => Text::first_line(stderr).to_string(),
+            other => other.to_string(),
+        };
+
+        raw.chars().take(90).collect()
+
+    }
+
     fn run_gate ( &self ) -> Flow<bool> {
 
-        let spec = &self.cfg.spec;
+        let gate = &self.cfg.gate;
         let log = &self.cfg.paths.gate_log;
 
-        if spec.gate_cmd.trim().is_empty() {
+        if gate.command.is_empty() {
 
             File::write(log, "no gate command set; gate skipped")?;
             return Ok(true);
 
         }
 
-        let output = Proc::shell_in(&spec.gate_cmd, &self.cfg.root, spec.gate_timeout)?;
+        let output = Proc::shell_in(&gate.command, &self.cfg.root, gate.timeout)?;
         File::write(log, &format!("{}{}", output.stdout, output.stderr))?;
 
         Ok(output.code == 0 && !output.timed_out)
@@ -638,7 +823,7 @@ impl<'a> Orchestrator<'a> {
 
         let model = self.cfg.manager().to_string();
         let prompt = Compose::manager_review(self.cfg, phase, task, round);
-        self.call("manager", &model, &prompt)?;
+        self.deliver("manager", &model, "", depth, &prompt)?;
 
         self.journey.manager_review = "done".to_string();
         self.save("review:done")?;
@@ -658,16 +843,16 @@ impl<'a> Orchestrator<'a> {
 
     fn gate_step ( &self, depth: usize ) -> Flow<bool> {
 
-        if self.cfg.spec.gate_cmd.trim().is_empty() {
+        if self.cfg.gate.command.is_empty() {
 
             self.run_gate()?;
-            Ui::dot(depth, "gate skipped — no gate_cmd set");
+            Ui::dot(depth, "gate skipped — no gate command set");
 
             return Ok(true);
 
         }
 
-        Ui::arrow(depth, &format!("running gate · {}", self.cfg.spec.gate_cmd));
+        Ui::arrow(depth, &format!("running gate · {}", self.cfg.gate.command));
 
         let ok = self.run_gate()?;
 
@@ -707,19 +892,25 @@ impl<'a> Orchestrator<'a> {
 
     fn check_drain ( &mut self ) -> Flow<()> {
 
+        if Proc::aborted() {
+
+            self.journey.status = Status::Stopped;
+            let _ = self.journey.save(&self.cfg.paths.state);
+
+            return Err(Halt::Stopped);
+
+        }
+
         if self.cfg.paths.drain.exists() {
 
             self.journey.status = Status::Drained;
             let _ = self.journey.save(&self.cfg.paths.state);
 
-            Err(Halt::Drained)
+            return Err(Halt::Drained);
 
         }
-        else {
 
-            Ok(())
-
-        }
+        Ok(())
 
     }
 

@@ -4,4 +4,4 @@ mod claude;
 mod codex;
 mod index;
 
-pub use arch::Worker;
+pub use arch::{Fault, Worker};

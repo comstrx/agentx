@@ -1,33 +1,28 @@
 use std::path::{Path as StdPath, PathBuf};
 
 use super::arch::Paths;
-use super::consts::{CACHE_DIR, CONFIG_FILE, DOCS_DIR};
+use super::consts::{CACHE_DIR, CONFIG_FILE, DOCS_DIRS};
 
 impl Paths {
 
     pub fn new ( root: &StdPath ) -> Self {
 
-        let docs = root.join(DOCS_DIR);
+        let docs: Vec<PathBuf> = DOCS_DIRS.iter().map(|name| root.join(name)).collect();
         let cache = root.join(CACHE_DIR);
+        let configs = cache.join("configs");
         let reports = cache.join("reports");
 
         Self {
             root: root.to_path_buf(),
 
-            overview: docs.join("overview.md"),
-            contracts: docs.join("contracts"),
-            skills: docs.join("skills"),
-            requires: docs.join("requires"),
-
             config_file: root.join(CONFIG_FILE),
-            gitignore: cache.join(".gitignore"),
 
-            state: cache.join("state.json"),
-            pid: cache.join("agentx.pid"),
-            active: cache.join("active.pid"),
-            sessions: cache.join("sessions.json"),
-            drain: cache.join("drain"),
-            gate_log: cache.join("gate.log"),
+            state: configs.join("state.json"),
+            pid: configs.join("agentx.pid"),
+            active: configs.join("active.pid"),
+            sessions: configs.join("sessions.json"),
+            drain: configs.join("drain"),
+            gate_log: configs.join("gate.log"),
 
             inbox: cache.join("requires"),
             tasks: cache.join("tasks"),
@@ -40,6 +35,7 @@ impl Paths {
 
             docs,
             cache,
+            configs,
         }
 
     }

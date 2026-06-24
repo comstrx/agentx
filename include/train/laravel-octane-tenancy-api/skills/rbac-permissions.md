@@ -82,5 +82,13 @@ not access). Role membership (`Role` middleware) is the coarse gate; `has:` is t
 - **Trusting the client** — reading role/permission/tenant from the body instead of `Context`.
 - **Unscoped setting row** — a `permission_settings` row missing `tenant_id` for a non-global scope → cross-tenant
   grant. Only `scope=global` is `tenant_id` NULL.
+- **Dropping the global defaults** — `permission_settings` is `HasTenant`, so a tenant's scope HIDES the
+  `scope=global` (NULL-`tenant_id`) rows; resolving without them silently loses every platform default. Read
+  tenant + global together with the sanctioned `withoutGlobalScope('tenant') + where(tenant_id = current OR
+  tenant_id IS NULL)` (NEVER `withoutTenancy()`, which is `super`-only and exposes all tenants) —
+  `tenancy-playbook.md`. Never widen that read to other tenants.
+- **Duplicate global rows** — NULL `tenant_id` is distinct in a UNIQUE index, so two `scope=global` rows for the
+  same permission can coexist and make resolution ambiguous; enforce uniqueness on the platform shape
+  (`NULLS NOT DISTINCT` / partial unique / upsert — `data.md`).
 - **Stale cache** — a grant/lock change not busting the tag → the old verdict (or stale faded-state) lingers.
 - **N+1 on resolution** — resolving per row; resolve the set once per (tenant, entity), reuse across the page.
