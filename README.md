@@ -107,7 +107,8 @@ agentx man > /usr/local/share/man/man1/agentx.1
 - **Requires** — architects write ordered task contracts: path, interface, invariants, acceptance criteria.
 - **Tasks** — executors build them one at a time; the gate runs after every turn (≤ `max_fixes` repairs).
 - **Tests** — verifiers attack the finished code; the manager reviews every round (≤ `max_rounds`).
-- **Resumable** — the cursor is checkpointed after every action; `stop`/`drain`/`Ctrl+C` are safe and `start` resumes.
+- **Warm** — each agent runs as one long-lived session kept warm for the whole journey (claude over streaming I/O, codex over its MCP server), so turns have no cold start and never lose context.
+- **Resumable** — the cursor is checkpointed after every action; `stop`/`drain`/`Ctrl+C` are safe and `start` resumes (re-warming each agent once).
 - **Resilient** — faults are classified and retried; a lost session is rebuilt; quota/auth stops cleanly.
 
 ## Self-training

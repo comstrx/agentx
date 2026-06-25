@@ -1,10 +1,23 @@
-use super::arch::{Backend, Claude, Codex};
+use super::arch::{Backend, Claude, Codex, Worker};
 
-impl Backend {
+const KNOWN: &[&str] = &["claude", "codex"];
 
-    pub(crate) fn select ( model: &str ) -> Self {
+impl Worker {
 
-        if model.starts_with("codex") { Self::Codex(Codex::new()) } else { Self::Claude(Claude::new()) }
+    pub fn resolve ( model: &str ) -> Option<&'static str> {
+
+        let name = model.trim().to_ascii_lowercase();
+
+        KNOWN.iter().copied().find(|key| name.starts_with(key) || name.contains(key))
+
+    }
+
+    pub(crate) fn make ( model: &str ) -> Box<dyn Backend> {
+
+        match Self::resolve(model) {
+            Some("codex") => Box::new(Codex::new()),
+            _ => Box::new(Claude::new()),
+        }
 
     }
 

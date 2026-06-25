@@ -14,6 +14,7 @@ use crate::core::support::parse::Json;
 use crate::core::support::proc::Proc;
 use crate::core::support::term::Term;
 use crate::core::support::text::Text;
+use crate::core::worker::Worker;
 use super::arch::{App, Flags, Journey, Orchestrator, Phase, Project, Status, Ui};
 
 impl App {
@@ -99,10 +100,20 @@ impl App {
         File::remove(&paths.active);
         File::remove(&paths.drain);
 
-        if result.is_ok() && orchestrator.journey.status == Status::Completed {
+        let journey = &orchestrator.journey;
+        let completed = result.is_ok() && journey.status == Status::Completed;
+
+        if completed && journey.blocked.is_empty() {
 
             Project::clear(&paths);
             Ui::ok("runtime cleared — .agentx reset to a clean slate (layout kept)");
+            Ui::blank();
+
+        }
+        else if completed {
+
+            Ui::warn(&format!("runtime kept for inspection — unresolved: {}", journey.blocked.join(", ")));
+            Ui::detail("review", &format!("{} · reports/ · rounds/", Path::relative_one(&paths.state, &root)));
             Ui::blank();
 
         }
@@ -809,6 +820,17 @@ impl App {
 
         let mut all_ok = true;
 
+        for model in Self::models(config) {
+
+            if Worker::resolve(&model).is_none() {
+
+                all_ok = false;
+                Ui::cross(0, &format!("{model:<8}  unsupported worker — add it under src/core/worker/, or fix the [agent] models"));
+
+            }
+
+        }
+
         for program in Self::required_programs(config) {
 
             let ( ok, detail ) = Self::probe(&program);
@@ -832,17 +854,18 @@ impl App {
 
     }
 
-    fn required_programs ( config: &Config ) -> BTreeSet<String> {
+    fn models ( config: &Config ) -> BTreeSet<String> {
 
         let agent = &config.agent;
-        let mut programs: BTreeSet<String> = BTreeSet::new();
 
-        for model in std::iter::once(&agent.manager).chain(&agent.architects).chain(&agent.executors).chain(&agent.testers) {
+        std::iter::once(&agent.manager).chain(&agent.architects).chain(&agent.executors).chain(&agent.testers)
+            .map(|model| model.trim().to_string()).filter(|model| !model.is_empty()).collect()
 
-            let backend = if model.trim().starts_with("codex") { "codex" } else { "claude" };
-            programs.insert(backend.to_string());
+    }
 
-        }
+    fn required_programs ( config: &Config ) -> BTreeSet<String> {
+
+        let mut programs: BTreeSet<String> = Self::models(config).iter().filter_map(|model| Worker::resolve(model)).map(str::to_string).collect();
 
         if !config.gate.command.trim().is_empty() { programs.insert("sh".to_string()); }
 

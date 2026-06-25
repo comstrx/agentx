@@ -165,7 +165,7 @@ impl Train {
 
         let prompt = prompt.replace("{answer}", &Path::display(&answer));
 
-        if worker.start(&prompt).is_err() {
+        if worker.turn(&prompt).is_err() {
 
             File::remove(&answer);
             return None;

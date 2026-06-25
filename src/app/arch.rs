@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::core::error::AppError;
+use crate::core::worker::Worker;
 
 const HELP_STYLES: Styles = Styles::styled()
     .header(AnsiColor::BrightCyan.on_default().effects(Effects::BOLD))
@@ -256,6 +257,7 @@ pub struct Orchestrator<'a> {
     pub cfg: &'a Config,
     pub journey: Journey,
     pub sessions: HashMap<String, String>,
+    pub live: HashMap<String, Worker>,
 }
 
 pub enum Halt {

@@ -19,7 +19,7 @@ impl<'a> Orchestrator<'a> {
         let journey = Journey::load(&cfg.paths.state);
         let sessions = Self::load_sessions(&cfg.paths.sessions);
 
-        Self { cfg, journey, sessions }
+        Self { cfg, journey, sessions, live: HashMap::new() }
 
     }
 
@@ -103,7 +103,42 @@ impl<'a> Orchestrator<'a> {
         Ui::role("architects", &self.cfg.roster("requires").join(" "));
         Ui::role("executors", &self.cfg.roster("tasks").join(" "));
         Ui::role("testers", &self.cfg.roster("tests").join(" "));
+        Ui::field("engines", "");
+
+        for ( name, model, effort ) in self.engines() {
+
+            Ui::role(name, &format!("model {model} · effort {effort}"));
+
+        }
+
         Ui::blank();
+
+    }
+
+    fn engines ( &self ) -> Vec<( &'static str, String, String )> {
+
+        let claude = self.cfg.engine("claude");
+        let codex = self.cfg.engine("codex");
+
+        let team: Vec<String> = std::iter::once(self.cfg.manager().to_string())
+            .chain(self.cfg.roster("requires"))
+            .chain(self.cfg.roster("tasks"))
+            .chain(self.cfg.roster("tests"))
+            .collect();
+
+        let mut out = Vec::new();
+
+        if team.iter().any(|model| Worker::resolve(model) == Some("claude")) { out.push(("claude", Self::dash(&claude.0), Self::dash(&claude.1))); }
+
+        if team.iter().any(|model| Worker::resolve(model) == Some("codex")) { out.push(("codex", Self::dash(&codex.0), Self::dash(&codex.1))); }
+
+        out
+
+    }
+
+    fn dash ( value: &str ) -> String {
+
+        if value.trim().is_empty() { "default".to_string() } else { value.trim().to_string() }
 
     }
 
@@ -522,7 +557,12 @@ impl<'a> Orchestrator<'a> {
 
             if self.journey.agents_done.iter().any(|done| done == agent) { continue; }
 
-            Ui::arrow(depth, &format!("{agent} · {verb}"));
+            let activity = match task {
+                Some(path) => format!("{agent} · {verb} {}", Path::stem_of(path)),
+                None => format!("{agent} · {verb}"),
+            };
+
+            Ui::arrow(depth, &activity);
 
             let prompt = self.build_prompt(phase, agent, task, !gate_ok, has_review);
             self.worker_turn(phase, agent, task, &prompt)?;
@@ -610,19 +650,31 @@ impl<'a> Orchestrator<'a> {
 
         self.dump_prompt(key, prompt)?;
 
-        let ( model, effort ) = self.cfg.engine(agent);
+        if !self.live.contains_key(key) {
 
-        let mut runner = Worker::new(agent);
-        runner.cwd(&self.cfg.root).timeout(self.cfg.agent.timeout).pid_file(&self.cfg.paths.active);
-        runner.engine(&model, &effort);
+            let ( model, effort ) = self.cfg.engine(agent);
 
-        if let Some(session) = self.sessions.get(key) && !session.is_empty() {
+            let mut runner = Worker::new(agent);
+            runner.cwd(&self.cfg.root).timeout(self.cfg.agent.timeout).pid_file(&self.cfg.paths.active);
+            runner.engine(&model, &effort);
 
-            runner.set_session(session);
+            if let Some(session) = self.sessions.get(key) && !session.is_empty() {
+
+                runner.set_session(session);
+
+            }
+
+            self.live.insert(key.to_string(), runner);
 
         }
 
-        let session = runner.start(prompt)?;
+        let Some(runner) = self.live.get_mut(key) else {
+
+            return Err(AppError::message("worker registry out of sync"));
+
+        };
+
+        let session = runner.turn(prompt)?;
 
         if !session.is_empty() {
 
@@ -739,6 +791,7 @@ impl<'a> Orchestrator<'a> {
     fn reprime ( &mut self, key: &str, agent: &str, phase: &str ) -> Flow<()> {
 
         self.sessions.remove(key);
+        self.live.remove(key);
         self.persist_sessions()?;
 
         let brief = if key == "manager" {
@@ -992,7 +1045,7 @@ impl<'a> Orchestrator<'a> {
 
         match phase {
             "requires" => "architecting the task plan",
-            "tasks"    => "implementing the task",
+            "tasks"    => "implementing",
             "tests"    => "verifying the result",
             _          => "working",
         }

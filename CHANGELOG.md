@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.2.0 — 2026-06-25
+
+- **Warm agent sessions.** Each agent now runs as ONE long-lived process kept warm for the whole journey — `claude` over streaming stdin/stdout, `codex` over its MCP server — instead of re-spawning the CLI every turn. No cold start and no replayed context between turns; sessions still persist to `sessions.json`, so `stop`/`start` resumes the very same conversation (re-warmed once on resume).
+- **Pluggable backends.** Workers are a trait (`Backend`); adding one (gemini, kimi, …) is a single file under `src/core/worker/` plus one registry line — the dispatch and the rest never change. An unsupported `[agent]` model now fails fast in `doctor` (and the `start`/`restart` preflight) with a clear message, before any work begins.
+- **Safer completion.** A run that ends with unresolved (blocked) work no longer auto-clears `.agentx/` — the reports, rounds, and state are kept for inspection; a clean run still resets as before.
+- **Clearer logs.** The live status line shows the current agent · task · elapsed; the startup banner lists the engines (model · effort) actually in use. A worker stream that closes mid-turn now surfaces the real stderr.
+
 ## v0.1.0 — 2026-06-24
 
 First release. A library and binary that drives a competing team of CLI coding agents to convergence — a resumable state machine, a per-task council of agents, an upfront priming phase, and a self-training knowledge base shared across projects of the same kind.
