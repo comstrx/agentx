@@ -92,8 +92,12 @@ fn flags_default_is_empty () {
     let flags = Flags::default();
 
     assert!(flags.inspire.is_none());
+    assert!(flags.description.is_none());
     assert!(flags.gate.is_none());
+    assert!(flags.audits.is_none());
     assert!(flags.tests.is_none());
+    assert!(flags.doc_blocks.is_none());
+    assert!(flags.doc_contracts.is_none());
     assert!(flags.ignore.is_empty());
     assert!(flags.include.is_empty());
     assert!(!flags.background);

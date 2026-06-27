@@ -5,4 +5,5 @@ pub mod config;
 pub mod app;
 
 pub use app::{App, Flags};
+pub use config::worker::Worker;
 pub use core::prelude::*;

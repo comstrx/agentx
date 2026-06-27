@@ -1,5 +1,3 @@
-mod arch;
-mod base;
 mod cli;
 mod compose;
 mod index;
@@ -8,4 +6,11 @@ mod run;
 mod state;
 mod ui;
 
-pub use arch::{App, Cli, Flags};
+pub use cli::{Cli, Flags};
+pub use index::App;
+
+pub(crate) use compose::Compose;
+pub(crate) use project::Project;
+pub(crate) use run::{Flow, Gate, Halt, Orchestrator};
+pub(crate) use state::{Journey, Phase, Status};
+pub(crate) use ui::{Loader, Ui};

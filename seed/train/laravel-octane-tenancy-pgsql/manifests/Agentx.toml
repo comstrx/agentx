@@ -1,0 +1,38 @@
+[project]
+inspire       = "laravel-octane-tenancy-pgsql"
+description   = "Laravel Octane backend-API SaaS — multi-tenant, multi-vendor, multi-product-type"
+
+[option]
+audits        = true
+formats       = false
+tests         = false
+fuzzes        = false
+benches       = false
+examples      = false
+comments      = false
+doc_blocks    = false
+doc_contracts = false
+
+[gate]
+timeout = 1000
+command = ""
+
+[agent]
+max_rounds = 3
+max_fixes  = 3
+timeout    = 10000
+manager    = "claude"
+requries   = [ "claude", "codex", "claude" ]
+tasks      = [ "claude" ]
+tests      = [ "claude" ]
+fuzzes     = [ "claude" ]
+benches    = [ "claude" ]
+examples   = [ "claude" ]
+
+[claude]
+model  = "opus"
+effort = "max"
+
+[codex]
+model  = "gpt-5-codex"
+effort = "high"

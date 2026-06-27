@@ -1,17 +1,28 @@
 use std::fs;
 use std::path::Path;
 
-use agentx::config::{Agent, Context, Gate, Paths, Spec};
+use agentx::config::{Agent, Context, Gate, Options, Paths, Spec};
 
 #[test]
-fn spec_defaults () {
+fn project_and_option_defaults () {
 
     let spec = Spec::default();
 
     assert!(spec.inspire.is_empty());
-    assert!(spec.tests);
-    assert_eq!(spec.max_rounds, 5);
-    assert_eq!(spec.max_fixes, 5);
+    assert!(spec.description.is_empty());
+
+    let opt = Options::default();
+
+    assert!(!opt.lint);
+    assert!(!opt.format);
+    assert!(!opt.audits);
+    assert!(!opt.tests);
+    assert!(!opt.fuzzes);
+    assert!(!opt.benches);
+    assert!(!opt.examples);
+    assert!(!opt.comments);
+    assert!(!opt.doc_blocks);
+    assert!(!opt.doc_contracts);
 
 }
 
@@ -20,13 +31,18 @@ fn gate_and_agent_defaults () {
 
     let gate = Gate::default();
 
-    assert_eq!(gate.timeout, 900);
+    assert_eq!(gate.timeout, 1000);
     assert!(gate.command.is_empty());
 
     let agent = Agent::default();
 
+    assert_eq!(agent.timeout, 10000);
+    assert_eq!(agent.max_audits, 3);
+    assert_eq!(agent.max_rounds, 3);
+    assert_eq!(agent.max_fixes, 3);
     assert_eq!(agent.manager, "claude");
-    assert_eq!(agent.architects, ["claude"]);
+    assert_eq!(agent.requires, ["claude"]);
+    assert_eq!(agent.audits, ["claude"]);
 
 }
 
@@ -34,7 +50,7 @@ fn gate_and_agent_defaults () {
 fn roster_numbers_duplicate_models () {
 
     let agent = Agent {
-        architects: vec!["claude".into(), "claude".into(), "codex".into()],
+        requires: vec!["claude".into(), "claude".into(), "codex".into()],
         ..Agent::default()
     };
 
@@ -46,11 +62,13 @@ fn roster_numbers_duplicate_models () {
 fn roster_selects_the_phase_and_is_empty_for_unknown () {
 
     let agent = Agent {
-        executors: vec!["codex".into()],
+        tasks: vec!["codex".into()],
+        benches: vec!["claude".into(), "codex".into()],
         ..Agent::default()
     };
 
     assert_eq!(agent.roster("tasks"), ["codex_1"]);
+    assert_eq!(agent.roster("benches"), ["claude_1", "codex_1"]);
     assert!(agent.roster("nope").is_empty());
 
 }
@@ -87,7 +105,7 @@ fn spec_round_trips_through_toml () {
 
     let spec = Spec {
         inspire: "demo".into(),
-        tests: false,
+        description: "a demo project".into(),
         ..Spec::default()
     };
 
@@ -96,7 +114,7 @@ fn spec_round_trips_through_toml () {
     let loaded = Spec::load(&file).unwrap();
 
     assert_eq!(loaded.inspire, "demo");
-    assert!(!loaded.tests);
+    assert_eq!(loaded.description, "a demo project");
 
     fs::remove_dir_all(&dir).ok();
 

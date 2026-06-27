@@ -1,4 +1,4 @@
-use agentx::core::worker::Fault;
+use agentx::config::worker::Fault;
 use agentx::{AppError, Worker};
 
 #[test]
