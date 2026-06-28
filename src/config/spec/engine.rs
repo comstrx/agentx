@@ -37,9 +37,12 @@ impl Document {
 
     }
 
-    pub fn engines ( &self ) -> ( ( String, String ), ( String, String ) ) {
+    pub fn engine_of ( &self, backend: &str ) -> ( String, String ) {
 
-        ( self.claude.resolved(CLAUDE_MODEL, CLAUDE_EFFORT), self.codex.resolved(CODEX_MODEL, CODEX_EFFORT) )
+        match backend {
+            "codex" => self.codex.resolved(CODEX_MODEL, CODEX_EFFORT),
+            _       => self.claude.resolved(CLAUDE_MODEL, CLAUDE_EFFORT),
+        }
 
     }
 

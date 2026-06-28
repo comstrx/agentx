@@ -21,6 +21,7 @@ fn fault_classifies_fatal () {
 
     assert!(matches!(Worker::fault(&AppError::message("Invalid API key")), Fault::Fatal));
     assert!(matches!(Worker::fault(&AppError::message("model not found")), Fault::Fatal));
+    assert!(matches!(Worker::fault(&AppError::message("The 'gpt-5-codex' model is not supported when using Codex with a ChatGPT account")), Fault::Fatal));
 
 }
 

@@ -4,7 +4,7 @@ description   = "Laravel Octane backend-API SaaS — multi-tenant, multi-vendor,
 
 [option]
 audits        = true
-formats       = false
+format        = false
 tests         = false
 fuzzes        = false
 benches       = false
@@ -22,7 +22,7 @@ max_rounds = 3
 max_fixes  = 3
 timeout    = 10000
 manager    = "claude"
-requries   = [ "claude", "codex", "claude" ]
+requires   = [ "claude", "codex", "claude" ]
 tasks      = [ "claude" ]
 tests      = [ "claude" ]
 fuzzes     = [ "claude" ]
@@ -31,8 +31,8 @@ examples   = [ "claude" ]
 
 [claude]
 model  = "opus"
-effort = "max"
+effort = "high"
 
 [codex]
-model  = "gpt-5-codex"
+model  = "gpt-5.5"
 effort = "high"

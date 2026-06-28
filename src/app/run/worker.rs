@@ -3,7 +3,6 @@ use std::time::Duration;
 use crate::config::base::consts::AGENT_RETRIES;
 use crate::core::error::{AppError, AppResult};
 use crate::core::proc::Proc;
-use crate::core::text::Text;
 use crate::config::worker::{Fault, Worker};
 use crate::app::{Compose, Flow, Halt, Orchestrator, Ui};
 
@@ -74,7 +73,7 @@ impl Orchestrator {
 
             }
 
-            Ui::cross(1, &format!("{agent} failed to initialise — {}; stopping", Self::reason(&error)));
+            if key == "manager" { Ui::cross(1, &format!("{agent} failed — {}; stopping", Self::reason(&error))); }
 
             return Err(Halt::Failed(error));
 
@@ -101,14 +100,14 @@ impl Orchestrator {
             match Worker::fault(&error) {
                 Fault::Exhausted => {
 
-                    Ui::cross(depth, &format!("{agent} — provider usage/quota exhausted; stopping, `start` resumes once it resets"));
+                    if key == "manager" { Ui::cross(depth, &format!("{agent} — provider usage/quota exhausted; stopping, `start` resumes once it resets")); }
 
                     return Err(Halt::Failed(error));
 
                 }
                 Fault::Fatal => {
 
-                    Ui::cross(depth, &format!("{agent} — unrecoverable: {}; stopping", Self::reason(&error)));
+                    if key == "manager" { Ui::cross(depth, &format!("{agent} — unrecoverable: {}; stopping", Self::reason(&error))); }
 
                     return Err(Halt::Failed(error));
 
@@ -132,7 +131,7 @@ impl Orchestrator {
 
             if reprimed {
 
-                Ui::cross(depth, &format!("{agent} — did not recover after re-priming; stopping ({})", Self::reason(&error)));
+                if key == "manager" { Ui::cross(depth, &format!("{agent} — did not recover after re-priming; stopping ({})", Self::reason(&error))); }
 
                 return Err(Halt::Failed(error));
 
@@ -146,6 +145,32 @@ impl Orchestrator {
             tries = 0;
 
         }
+
+    }
+
+    pub(super) fn survive ( &mut self, phase: &str, agent: &str, depth: usize, result: Flow<()> ) -> Flow<bool> {
+
+        let halt = match result {
+            Ok(()) => return Ok(true),
+            Err(halt) => halt,
+        };
+
+        let Halt::Failed(error) = halt else { return Err(halt); };
+
+        let live = self.cfg.roster(phase).iter().filter(|name| !self.dropped.contains(&Self::key(phase, name.as_str()))).count();
+
+        if live <= 1 {
+
+            Ui::cross(depth, &format!("{agent} failed — {}; stopping (it is the only agent left in {phase})", Self::reason(&error)));
+
+            return Err(Halt::Failed(error));
+
+        }
+
+        self.dropped.insert(Self::key(phase, agent));
+        Ui::bang(depth, &format!("{agent} dropped from {phase} — {}; the role's other agents carry on", Self::reason(&error)));
+
+        Ok(false)
 
     }
 
@@ -192,13 +217,9 @@ impl Orchestrator {
 
     pub(super) fn reason ( error: &AppError ) -> String {
 
-        let raw = match error {
-            AppError::Timeout { secs, .. } => return format!("timed out after {secs}s"),
-            AppError::Command { stderr, .. } if !stderr.trim().is_empty() => Text::first_line(stderr).to_string(),
-            other => other.to_string(),
-        };
+        if let AppError::Timeout { secs, .. } = error { return format!("timed out after {secs}s"); }
 
-        raw.chars().take(90).collect()
+        error.detail().chars().take(160).collect()
 
     }
 

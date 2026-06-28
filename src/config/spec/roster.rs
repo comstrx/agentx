@@ -1,8 +1,30 @@
 use std::collections::HashMap;
 
+use crate::config::base::consts::PHASES;
+use crate::config::worker::Worker;
 use super::arch::Agent;
 
 impl Agent {
+
+    pub fn backends ( &self ) -> Vec<&'static str> {
+
+        let mut names = vec![self.manager.clone()];
+
+        for phase in PHASES {
+
+            names.extend(self.roster(phase));
+
+        }
+
+        let mut out = Vec::new();
+
+        if names.iter().any(|name| Worker::resolve(name) == Some("claude")) { out.push("claude"); }
+
+        if names.iter().any(|name| Worker::resolve(name) == Some("codex")) { out.push("codex"); }
+
+        out
+
+    }
 
     pub fn models ( &self, phase: &str ) -> &[String] {
 

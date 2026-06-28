@@ -28,7 +28,7 @@ impl Orchestrator {
             let action = self.manager_review(phase, task, round)?;
             self.check_drain()?;
 
-            if action == "ship" && ( phase != "tasks" || gate_ok ) {
+            if action == "ship" && ( !Self::gates(phase) || gate_ok ) {
 
                 self.archive_final(phase, roster, task)?;
 
@@ -49,7 +49,7 @@ impl Orchestrator {
 
     pub(super) fn roster_pass ( &mut self, phase: &str, roster: &[String], task: Option<&StdPath>, has_review: bool ) -> Flow<bool> {
 
-        let gate_ok = true;
+        let mut gate_ok = true;
 
         let depth = if task.is_some() { 3 } else { 2 };
         let verb = Self::verb_of(phase);
@@ -63,6 +63,8 @@ impl Orchestrator {
 
             if self.journey.agents_done.iter().any(|done| done == agent) { continue; }
 
+            if self.dropped.contains(&Self::key(phase, agent)) { continue; }
+
             let activity = match task {
                 Some(path) => format!("{agent} · {verb} {}", Path::stem_of(path)),
                 None => format!("{agent} · {verb}"),
@@ -71,11 +73,13 @@ impl Orchestrator {
             Ui::arrow(depth, &activity);
 
             let prompt = self.build_prompt(phase, agent, task, !gate_ok, has_review);
-            self.worker_turn(phase, agent, task, &prompt)?;
+            let turn = self.worker_turn(phase, agent, task, &prompt);
+
+            if !self.survive(phase, agent, depth, turn)? { continue; }
 
             Ui::tick(depth, &format!("{agent} wrote {}", Path::relative_one(&self.cfg.paths.report_of(phase, agent), &self.cfg.root)));
 
-            if phase == "tasks" {
+            if Self::gates(phase) {
 
                 let mut gate = self.gate_step(depth)?;
                 let mut fixes = 0;
@@ -93,9 +97,15 @@ impl Orchestrator {
                 }
 
                 match gate {
-                    Gate::Green   => {}
-                    Gate::Timeout => return Err(self.gate_timeout(agent, task)),
-                    Gate::Red     => return Err(self.gate_failure(agent, task)),
+                    Gate::Green                   => gate_ok = true,
+                    Gate::Timeout                 => return Err(self.gate_timeout(agent, task)),
+                    Gate::Red if phase == "tasks" => return Err(self.gate_failure(agent, task)),
+                    Gate::Red => {
+
+                        Ui::bang(depth, &format!("{agent} left the gate red after {max_fixes} fix(es) — blocking the {phase} phase for the manager"));
+                        gate_ok = false;
+
+                    }
                 }
 
             }
@@ -119,7 +129,7 @@ impl Orchestrator {
             "requires" => Compose::architect(&self.cfg, agent, has_review),
             "tasks" => Compose::executor(&self.cfg, agent, task.unwrap_or_else(|| StdPath::new("")), gate_failed, has_review),
             "audits" => Compose::auditor(&self.cfg, agent, has_review),
-            "tests" | "benches" | "examples" | "fuzzes" => Compose::producer(&self.cfg, phase, agent, has_review),
+            "tests" | "benches" | "examples" | "fuzzes" => Compose::producer(&self.cfg, phase, agent, gate_failed, has_review),
             _ => String::new(),
         }
 
@@ -128,6 +138,9 @@ impl Orchestrator {
     pub(super) fn worker_turn ( &mut self, phase: &str, agent: &str, task: Option<&StdPath>, prompt: &str ) -> Flow<()> {
 
         self.journey.current_agent = agent.to_string();
+        self.journey.last_action = format!("{phase}_turn");
+        self.save("turn")?;
+
         self.archive_report(phase, agent, task)?;
 
         let depth = if task.is_some() { 3 } else { 2 };

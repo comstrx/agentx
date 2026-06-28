@@ -77,6 +77,12 @@ impl Orchestrator {
 
     }
 
+    pub(super) fn gates ( phase: &str ) -> bool {
+
+        matches!(phase, "tasks" | "tests" | "benches" | "examples" | "fuzzes")
+
+    }
+
     pub(super) fn active ( &self, phase: &str ) -> bool {
 
         match phase {
@@ -91,7 +97,7 @@ impl Orchestrator {
 
     }
 
-    pub(super) fn verb_of ( phase: &str ) -> &'static str {
+    pub(crate) fn verb_of ( phase: &str ) -> &'static str {
 
         match phase {
             "requires" => "architecting the task plan",

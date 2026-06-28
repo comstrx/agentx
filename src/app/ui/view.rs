@@ -70,22 +70,6 @@ impl Ui {
 
     }
 
-    pub fn worker ( label: &str, value: &str, on: bool ) {
-
-        let glyph = match on {
-            true => Self::paint("●", Style::new().bright_green().bold()),
-            false => " ".to_string(),
-        };
-
-        let tail = match on {
-            true => Self::paint("   ← active", Style::new().bright_green().bold()),
-            false => String::new(),
-        };
-
-        Self::line(&format!("  {glyph}  {}  {value}{tail}", Self::paint(&format!("{label:<18}"), Style::new().bright_black())));
-
-    }
-
     pub fn bar ( done: usize, total: usize ) -> String {
 
         let width = 18;

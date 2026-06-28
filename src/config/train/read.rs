@@ -4,7 +4,8 @@ use std::path::PathBuf;
 use crate::core::error::AppResult;
 use crate::core::fs::{Dir, File, Path};
 use crate::core::text::Text;
-use crate::config::base::consts::{ABOUT_FILE, CONTRACTS, DESIGNS, HISTORY, MANIFESTS_DIR, MD_EXT, OVERVIEW, REPORTS_DIR, REQUIRES, SKILLS, TASKS_DIR, TRAIN_DIR};
+use crate::config::Context;
+use crate::config::base::consts::{ABOUT_FILE, CONTRACTS, DESIGNS, HISTORY, MANIFESTS_DIR, MD_EXT, OVERVIEW, REFERENCES, REPORTS_DIR, REQUIRES, SKILLS, TASKS_DIR, TRAIN_DIR};
 use super::arch::Train;
 use super::seed::INCLUDE;
 
@@ -38,27 +39,12 @@ impl Train {
 
     }
 
-    pub fn overview ( name: &str ) -> Vec<PathBuf> {
+    pub fn context ( name: &str ) -> Context {
 
-        Dir::markdown(&Self::trains().join(name).join(OVERVIEW))
+        let mut context = Context::default();
+        context.collect(&Self::trains().join(name), true);
 
-    }
-
-    pub fn contracts ( name: &str ) -> Vec<PathBuf> {
-
-        Dir::markdown(&Self::trains().join(name).join(CONTRACTS))
-
-    }
-
-    pub fn skills ( name: &str ) -> Vec<PathBuf> {
-
-        Dir::markdown(&Self::trains().join(name).join(SKILLS))
-
-    }
-
-    pub fn designs ( name: &str ) -> Vec<PathBuf> {
-
-        Dir::walk(&Self::trains().join(name).join(DESIGNS)).into_iter().filter(|path| path.is_file()).collect()
+        context
 
     }
 
@@ -119,7 +105,7 @@ impl Train {
 
         let dir = Self::trains().join(name);
 
-        for bucket in [OVERVIEW, CONTRACTS, SKILLS, DESIGNS, MANIFESTS_DIR] {
+        for bucket in [OVERVIEW, CONTRACTS, SKILLS, DESIGNS, REFERENCES, MANIFESTS_DIR] {
 
             Dir::ensure(&dir.join(bucket))?;
 

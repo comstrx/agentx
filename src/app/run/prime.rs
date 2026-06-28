@@ -15,6 +15,7 @@ impl Orchestrator {
         Ui::rule("priming · training the team before any work");
 
         Ui::arrow(0, "lap 1 — teaching the project, the contracts, and each role");
+        Ui::blank();
 
         if !self.sessions.contains_key("manager") { Ui::arrow(1, "training the manager"); }
 
@@ -32,16 +33,21 @@ impl Orchestrator {
 
                 let key = Self::key(phase, agent);
 
+                if self.dropped.contains(&key) { continue; }
+
                 if !self.sessions.contains_key(&key) { Ui::arrow(1, &format!("training {agent} · {role}")); }
 
                 let prompt = Compose::prime(&self.cfg, &self.journey, phase, agent);
-                self.prime_turn(&key, agent, &prompt)?;
+                let turn = self.prime_turn(&key, agent, &prompt);
+                self.survive(phase, agent, 1, turn)?;
 
             }
 
         }
 
+        Ui::blank();
         Ui::arrow(0, "lap 2 — active-recall confirmation of the invariants");
+        Ui::blank();
 
         Ui::arrow(1, "confirming the manager");
         let confirm = Compose::reaffirm(&self.cfg, &model);
@@ -57,10 +63,14 @@ impl Orchestrator {
             for agent in &roster {
 
                 let key = Self::key(phase, agent);
+
+                if self.dropped.contains(&key) { continue; }
+
                 let prompt = Compose::reaffirm(&self.cfg, agent);
 
                 Ui::arrow(1, &format!("confirming {agent}"));
-                self.call(&key, agent, &prompt)?;
+                let turn = self.call(&key, agent, &prompt);
+                self.survive(phase, agent, 1, turn)?;
                 self.check_drain()?;
 
             }

@@ -85,13 +85,14 @@ fn paths_resolve_under_the_cache () {
 }
 
 #[test]
-fn stem_classification_is_multi_bucket () {
+fn stem_classification () {
 
-    let agentx = Context::buckets_of_stem("agentx");
-
-    assert!(agentx.contains(&"overview"));
-    assert!(agentx.contains(&"contracts"));
+    assert_eq!(Context::buckets_of_stem("agentx"), ["overview"]);
     assert_eq!(Context::buckets_of_stem("claude"), ["overview"]);
+    assert_eq!(Context::buckets_of_stem("codex"), ["overview"]);
+    assert_eq!(Context::buckets_of_stem("contracts"), ["contracts"]);
+    assert_eq!(Context::buckets_of_stem("instructions"), ["contracts"]);
+    assert_eq!(Context::buckets_of_stem("references"), ["references"]);
 
 }
 

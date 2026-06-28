@@ -1,11 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::config::Config;
-use crate::config::base::consts::{PHASES, TOOL};
+use crate::config::base::consts::TOOL;
 use crate::core::error::AppResult;
 use crate::core::fs::{Dir, Path};
 use crate::core::proc::Proc;
-use crate::config::worker::Worker;
 use crate::app::{Halt, Journey, Orchestrator, Status, Ui};
 
 impl Orchestrator {
@@ -15,7 +14,7 @@ impl Orchestrator {
         let journey = Journey::load(&cfg.paths.state);
         let sessions = Self::load_sessions(&cfg.paths.sessions);
 
-        Self { cfg, journey, sessions, live: HashMap::new() }
+        Self { cfg, journey, sessions, live: HashMap::new(), dropped: HashSet::new() }
 
     }
 
@@ -85,15 +84,17 @@ impl Orchestrator {
     pub(super) fn boot ( &self ) {
 
         let kind = if self.cfg.spec.inspire.is_empty() { "(unbound)".to_string() } else { self.cfg.spec.inspire.clone() };
-        let gate = if self.cfg.gate.command.is_empty() { "(none — gate skipped)".to_string() } else { self.cfg.gate.command.clone() };
 
         Ui::blank();
         Ui::title(&format!("{TOOL} · orchestration server"));
         Ui::blank();
         Ui::step("starting up — readying the team and the pipeline");
+        Ui::blank();
         Ui::field("project", &Path::display(&self.cfg.root));
-        Ui::field("type", &kind);
-        Ui::field("gate", &gate);
+        Ui::field("inspire", &kind);
+
+        if !self.cfg.gate.command.is_empty() { Ui::field("gate", &self.cfg.gate.command); }
+
         Ui::field("team", "");
         Ui::role("manager", self.cfg.manager());
         Ui::role("architects", &self.cfg.roster("requires").join(" "));
@@ -113,43 +114,19 @@ impl Orchestrator {
 
         }
 
-        if self.cfg.gate.command.trim().is_empty() {
-
-            Ui::blank();
-            Ui::warn("no quality gate is set — the team's code will NOT be gate-verified this run; set [gate].command or pass --gate");
-
-        }
-
         Ui::blank();
 
     }
 
     pub(super) fn engines ( &self ) -> Vec<( &'static str, String, String )> {
 
-        let claude = self.cfg.engine("claude");
-        let codex = self.cfg.engine("codex");
+        self.cfg.agent.backends().into_iter().map(|name| {
 
-        let mut team: Vec<String> = vec![self.cfg.manager().to_string()];
+            let ( model, effort ) = self.cfg.engine(name);
 
-        for phase in PHASES {
+            ( name, model, effort )
 
-            team.extend(self.cfg.roster(phase));
-
-        }
-
-        let mut out = Vec::new();
-
-        if team.iter().any(|model| Worker::resolve(model) == Some("claude")) { out.push(("claude", Self::dash(&claude.0), Self::dash(&claude.1))); }
-
-        if team.iter().any(|model| Worker::resolve(model) == Some("codex")) { out.push(("codex", Self::dash(&codex.0), Self::dash(&codex.1))); }
-
-        out
-
-    }
-
-    pub(super) fn dash ( value: &str ) -> String {
-
-        if value.trim().is_empty() { "default".to_string() } else { value.trim().to_string() }
+        }).collect()
 
     }
 
@@ -170,7 +147,6 @@ impl Orchestrator {
             Ui::ok("journey complete — every phase shipped");
             Ui::field("delivered", &format!("{shipped}/{total} task(s)"));
             Ui::field("phases", &ran.join(" → "));
-            Ui::field("next", "recording the run into the training center, then clearing the runtime");
 
         }
         else {
@@ -178,7 +154,6 @@ impl Orchestrator {
             Ui::warn(&format!("journey complete with {} open issue(s)", self.journey.blocked.len()));
             Ui::field("delivered", &format!("{shipped}/{total} task(s) shipped"));
             Ui::field("blocked", &self.journey.blocked.join(", "));
-            Ui::field("next", &format!("runtime kept for inspection — fix it, then `{TOOL} start` to resume (or `{TOOL} train` + `{TOOL} clear`)"));
 
         }
 

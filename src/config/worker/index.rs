@@ -15,7 +15,7 @@ impl Worker {
 
         if Self::names(&text, &["usage limit", "quota", "credit", "billing", "insufficient", "payment", "out of credits", "exceeded your"]) { return Fault::Exhausted; }
         if Self::names(&text, &["no conversation", "conversation not found", "session not found", "no session", "unknown session", "invalid session", "could not resume", "no such session", "resume"]) { return Fault::Session; }
-        if Self::names(&text, &["api key", "unauthorized", "authentication", "not logged in", " 401", " 403", "invalid model", "model not found", "unknown model", "no such model", "permission denied", "forbidden", "no such file", "executable file not found", "command not found", "cannot find"]) { return Fault::Fatal; }
+        if Self::names(&text, &["api key", "unauthorized", "authentication", "not logged in", " 401", " 403", "invalid model", "model not found", "unknown model", "no such model", "not supported", "unsupported", "permission denied", "forbidden", "no such file", "executable file not found", "command not found", "cannot find"]) { return Fault::Fatal; }
 
         Fault::Transient
 

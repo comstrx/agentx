@@ -142,7 +142,7 @@ pub struct Cli {
         long = "doc-blocks",
         global = true,
         value_name = "BOOL",
-        help = "Document every public item in the native doc format (overrides [project].doc_blocks): true/false, 1/0, yes/no",
+        help = "Document every public item in the native doc format (overrides [option].doc_blocks): true/false, 1/0, yes/no",
     )]
     pub doc_blocks: Option<String>,
 
@@ -150,7 +150,7 @@ pub struct Cli {
         long = "doc-contracts",
         global = true,
         value_name = "BOOL",
-        help = "Document non-obvious units that don't return explicit types (overrides [project].doc_contracts): true/false, 1/0, yes/no",
+        help = "Document non-obvious units that don't return explicit types (overrides [option].doc_contracts): true/false, 1/0, yes/no",
     )]
     pub doc_contracts: Option<String>,
 

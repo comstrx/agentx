@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::config::{Config, Worker};
 use crate::core::error::AppError;
@@ -9,6 +9,7 @@ pub struct Orchestrator {
     pub journey: Journey,
     pub sessions: HashMap<String, String>,
     pub live: HashMap<String, Worker>,
+    pub dropped: HashSet<String>,
 }
 
 pub enum Halt {

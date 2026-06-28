@@ -8,6 +8,7 @@ pub struct Context {
     pub contracts: Vec<PathBuf>,
     pub skills: Vec<PathBuf>,
     pub designs: Vec<PathBuf>,
+    pub references: Vec<PathBuf>,
     pub history: Vec<PathBuf>,
     pub requires: Vec<PathBuf>,
 }

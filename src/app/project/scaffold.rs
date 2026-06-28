@@ -8,18 +8,9 @@ impl Project {
 
     pub(crate) fn scaffold ( paths: &Paths ) -> AppResult<()> {
 
-        for phase in PHASES {
+        Self::scaffold_cache(paths)?;
 
-            Dir::ensure(&paths.reports_of(phase))?;
-            Dir::ensure(&paths.rounds_of(phase))?;
-
-        }
-
-        for dir in [&paths.docs, &paths.configs, &paths.manager, &paths.inbox, &paths.tasks, &paths.audit, &paths.tests, &paths.probes] {
-
-            Dir::ensure(dir)?;
-
-        }
+        Dir::ensure(&paths.docs)?;
 
         if !Path::exists(&paths.config_file) { File::write(&paths.config_file, &Spec::default_toml())?; }
 
@@ -27,9 +18,28 @@ impl Project {
 
     }
 
+    fn scaffold_cache ( paths: &Paths ) -> AppResult<()> {
+
+        for phase in PHASES {
+
+            Dir::ensure(&paths.reports_of(phase))?;
+            Dir::ensure(&paths.rounds_of(phase))?;
+
+        }
+
+        for dir in [&paths.configs, &paths.manager, &paths.inbox, &paths.tasks, &paths.audit] {
+
+            Dir::ensure(dir)?;
+
+        }
+
+        Ok(())
+
+    }
+
     pub(crate) fn reset_runtime ( paths: &Paths ) {
 
-        for dir in [&paths.inbox, &paths.tasks, &paths.audit, &paths.reports, &paths.rounds, &paths.probes, &paths.tests] {
+        for dir in [&paths.inbox, &paths.tasks, &paths.audit, &paths.reports, &paths.rounds] {
 
             Dir::clear_files(dir);
 
@@ -42,7 +52,8 @@ impl Project {
 
     pub(crate) fn clear ( paths: &Paths ) {
 
-        Dir::clear_files(&paths.cache);
+        Dir::remove(&paths.cache);
+        let _ = Self::scaffold_cache(paths);
 
     }
 

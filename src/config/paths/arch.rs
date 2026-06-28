@@ -22,6 +22,4 @@ pub struct Paths {
     pub reports: PathBuf,
     pub manager: PathBuf,
     pub rounds: PathBuf,
-    pub tests: PathBuf,
-    pub probes: PathBuf,
 }

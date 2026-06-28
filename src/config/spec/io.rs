@@ -4,7 +4,7 @@ use std::path::Path as StdPath;
 use crate::core::error::AppResult;
 use crate::core::fs::File;
 use crate::core::parse::Toml;
-use super::arch::{Agent, Document, Gate, Spec};
+use super::arch::{Agent, Document, Gate, Options, Spec};
 use crate::config::base::consts::{
     AGENT_TIMEOUT, CLAUDE_EFFORT, CLAUDE_MODEL, CODEX_EFFORT, CODEX_MODEL, DEFAULT_MODEL,
     GATE_TIMEOUT, MANAGER_MODEL, MAX_AUDITS, MAX_FIXES, MAX_ROUNDS,
@@ -15,6 +15,8 @@ impl Spec {
     pub(crate) fn default_toml () -> String {
 
         let one = DEFAULT_MODEL;
+        let o = Options::default();
+        let b = |value: bool| if value { "true" } else { "false" };
 
         format!(
 "[project]
@@ -22,18 +24,18 @@ inspire       = \"\"
 description   = \"\"
 
 [option]
-lint          = false
-format        = false
-audits        = false
-tests         = false
-fuzzes        = false
-benches       = false
-examples      = false
-comments      = false
-doc_blocks    = false
-doc_contracts = false
-train         = true
-clear         = true
+lint          = {lint}
+format        = {format}
+audits        = {audits}
+tests         = {tests}
+fuzzes        = {fuzzes}
+benches       = {benches}
+examples      = {examples}
+comments      = {comments}
+doc_blocks    = {doc_blocks}
+doc_contracts = {doc_contracts}
+train         = {train}
+clear         = {clear}
 
 [gate]
 timeout = {GATE_TIMEOUT}
@@ -60,7 +62,19 @@ effort = \"{CLAUDE_EFFORT}\"
 [codex]
 model  = \"{CODEX_MODEL}\"
 effort = \"{CODEX_EFFORT}\"
-"
+",
+            lint = b(o.lint),
+            format = b(o.format),
+            audits = b(o.audits),
+            tests = b(o.tests),
+            fuzzes = b(o.fuzzes),
+            benches = b(o.benches),
+            examples = b(o.examples),
+            comments = b(o.comments),
+            doc_blocks = b(o.doc_blocks),
+            doc_contracts = b(o.doc_contracts),
+            train = b(o.train),
+            clear = b(o.clear),
         )
 
     }

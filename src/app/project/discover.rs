@@ -1,7 +1,7 @@
 use std::path::{Path as StdPath, PathBuf};
 
 use crate::config::{Context, Paths, Spec, Train};
-use crate::config::base::consts::{DESIGNS, MD_EXT, OVERVIEW};
+use crate::config::base::consts::{MD_EXT, OVERVIEW};
 use crate::core::fs::{Dir, Path};
 use crate::core::text::Text;
 use crate::app::Project;
@@ -15,10 +15,13 @@ impl Project {
 
         if !kind.is_empty() {
 
-            context.overview = Self::merge(Train::overview(kind), context.overview);
-            context.contracts = Self::merge(Train::contracts(kind), context.contracts);
-            context.skills = Self::merge(Train::skills(kind), context.skills);
-            context.designs = Self::merge(Train::designs(kind), context.designs);
+            let train = Train::context(kind);
+
+            context.overview = Self::merge(train.overview, context.overview);
+            context.contracts = Self::merge(train.contracts, context.contracts);
+            context.skills = Self::merge(train.skills, context.skills);
+            context.designs = Self::merge(train.designs, context.designs);
+            context.references = Self::merge(train.references, context.references);
             context.history = Self::merge(Train::history(kind), context.history);
 
         }
@@ -38,50 +41,17 @@ impl Project {
 
     fn scan ( paths: &Paths, ignore: &[String], include: &[String] ) -> Context {
 
-        let mut context = Context::default();
         let root = paths.root.as_path();
+        let mut context = Context::default();
 
-        for dir in [&paths.root, &paths.docs] {
+        context.collect(&paths.root, false);
+        context.collect(&paths.docs, true);
 
-            for entry in Dir::files(dir) {
-
-                if !Path::has_extension(&entry, MD_EXT) { continue; }
-
-                if Self::excluded(&entry, root, ignore, include) { continue; }
-
-                for bucket in Context::buckets_of_stem(&Path::stem_of(&entry).to_ascii_lowercase()) {
-
-                    context.add(bucket, entry.clone());
-
-                }
-
-            }
-
-        }
-
-        for entry in Dir::subdirs(&paths.docs) {
-
-            if let Some(bucket) = Context::bucket_of_dir(&Path::name_of(&entry).to_ascii_lowercase()) {
-
-                let any = bucket == DESIGNS;
-
-                for md in Dir::walk(&entry) {
-
-                    if md.is_file() && ( any || Path::has_extension(&md, MD_EXT) ) && !Self::excluded(&md, root, ignore, include) {
-
-                        context.add(bucket, md);
-
-                    }
-
-                }
-
-            }
-
-        }
+        context.retain(|path| !Self::excluded(path, root, ignore, include));
 
         Self::include_extra(&mut context, root, include);
 
-        Self::sort(&mut context);
+        context.sort();
 
         context
 
@@ -153,23 +123,6 @@ impl Project {
         match Context::bucket_of_dir(&parent) {
             Some(bucket) => context.add(bucket, file.to_path_buf()),
             None => context.add(OVERVIEW, file.to_path_buf()),
-        }
-
-    }
-
-    fn sort ( context: &mut Context ) {
-
-        for bucket in [
-            &mut context.overview,
-            &mut context.contracts,
-            &mut context.skills,
-            &mut context.designs,
-            &mut context.history,
-            &mut context.requires,
-        ] {
-
-            bucket.sort_by(|a, b| Text::natural_compare(&Path::name_of(a), &Path::name_of(b)));
-
         }
 
     }

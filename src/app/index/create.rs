@@ -98,6 +98,8 @@ impl App {
         let mut command = Command::new(exe);
         command.arg("new").arg(target).arg("--inspire").arg(inspire);
 
+        if let Some(value) = flags.gate { command.arg("--gate").arg(value); }
+
         flags.forward(&mut command);
 
         command.current_dir(target);

@@ -34,11 +34,16 @@ STUDY, IN ORDER - own each layer before the next:
    colour, hierarchy) and match their TASTE in THIS project's own brand - never pixel-copy unless a contract
    demands it. If nothing is listed, this is a backend / API project - skip this step:
 {designs}
-5. HISTORY - the memory of past projects of THIS exact kind. Study in order: FIRST what they delivered and how it
+5. REFERENCES - prior projects and reference implementations the maintainer hands you; OPTIONAL. If files or
+   folders are listed, open and explore them to absorb the maintainer's taste, abstraction level, and the WHY
+   behind their structure - the standard to match and then BEAT, never to copy. If nothing is listed, skip this
+   step:
+{references}
+6. HISTORY - the memory of past projects of THIS exact kind. Study in order: FIRST what they delivered and how it
    was decomposed, THEN the decision reports (you now understand what they refer to). Reuse the proven shapes;
    never reopen a settled call:
 {history}
-6. THE LIVE RUN - {cache}/ is this tool's WORKSPACE for the run you are in. It is NOT project source - never build
+7. THE LIVE RUN - {cache}/ is this tool's WORKSPACE for the run you are in. It is NOT project source - never build
    features into it. Read it to know EXACTLY where the run stands and continue it, never restart it: the backlog
    under {requires}/, the task plan under {tasks}/, and the live cursor, prior reports, and round trail elsewhere
    under {cache}/. On a fresh run these are empty; on a resumed run they are your ground truth.
@@ -88,6 +93,18 @@ pub const WORK_DISCIPLINE: &str = r#"Operate like a master, not a first-drafter,
    the contracts and this turn's acceptance criteria, and close EVERY gap NOW. A defect you catch yourself is
    free; a defect the manager catches wastes a whole round for the team. Report only what you would stake your
    name on."#;
+
+pub const OWNERSHIP: &str = r#"{agent}, take this personally: the operator is counting on YOU to leave this WHOLE project right, not just to
+close your own slice. You are sharp and so are your teammates - which is exactly why nothing here is taken on
+trust. A confident report can still be wrong, a green gate can still hide a bad seam, and a teammate - or your
+own earlier round - can describe a detail that was never actually built. So treat every report you inherit -
+theirs AND your own prior rounds - as a CLAIM to check, never a fact to accept. Open the REAL code behind it and
+confirm with your own eyes: that it exists and does what the report says, that it holds on the edges, and that
+it INTEGRATES cleanly with the rest of the project - its real layers, vocabulary, and contracts - with nothing
+left half-wired or duplicated. Where prior work is right, build on it and credit it; where it is wrong, resolve
+what your role owns and flag the rest precisely - file, line, and why - so the right hands fix it. Carry a
+manager's VIGILANCE, never a manager's authority: persuade with evidence, not with rank, and let the strongest
+idea win whoever it belongs to. Ego stalls a project; quiet, careful ownership ships it."#;
 
 pub const STARTUP: &str = r#"WHERE THIS RUN STANDS - this is a BRAND-NEW run: {cache}/ holds no prior work and nothing has been built yet.
 You begin the pipeline from the very start - the manager first turns the requirements into an ordered backlog,
@@ -259,7 +276,8 @@ the next project of this kind inherits exactly what was learned here.
 
 For EACH requirement file under {requires}/, write its report to {manager}/ using the EXACT SAME filename as
 that requirement (e.g. {requires}/0007-rbac-resolver.md → {manager}/0007-rbac-resolver.md). One file in, one
-file out, same name. Read the round trails under {rounds}/ and use your memory of the whole run.
+file out, same name. Read the round trails under {rounds}/ - including your OWN earlier review verdicts under
+{rounds}/manager/ - and use your memory of the whole run.
 
 Each report is one dense, truthful, GENERALISED decision record for that single requirement: what it required,
 the shape it was built into, the key decisions and trade-offs with their concrete WHY, the technologies or
@@ -525,6 +543,13 @@ briefed - scoped to what the executors have actually built. Read the prior {phas
 round trail in {rounds}/, and {review} if it is present - only what changed since you last acted; build on what
 is right and replace only what is genuinely wrong. Actually RUN everything you write and capture the real
 output."#;
+
+pub const PRODUCE_GATE_FAIL: &str = r#"THE GATE IS RED after your last turn - something you added broke it. Read {gate_log} and act precisely. If a
+file YOU wrote does not compile, lint, or format, fix THAT artifact now until the gate is green - you may always
+correct your own test / benchmark / example / harness. But you NEVER edit project source to force it green, and
+you NEVER weaken, delete, or skip a VALID check just to pass: if the gate is red because a correct test you wrote
+exposes a REAL defect in the executed code, that is a genuine finding - leave it red, record it as a DEFECT in
+your report with a concrete, minimal repro, and stop. Fix your own breakage; surface real defects, never bury them."#;
 
 pub const PRODUCE_REPORT: &str = r#"Final action - OVERWRITE your report at {report}.
 State exactly what you produced and WHERE, exactly what you ran, and the real captured output (pass/fail,

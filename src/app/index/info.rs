@@ -40,7 +40,7 @@ impl App {
             false => spec.inspire.clone(),
         };
 
-        Ui::field("inspiration", &kind);
+        Ui::field("inspire", &kind);
 
         let live = match Proc::read_pid(&paths.pid) {
             Some(pid) if Proc::is_alive(pid) => format!("running (pid {pid})"),

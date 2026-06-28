@@ -45,6 +45,18 @@ impl Dir {
 
     }
 
+    pub fn resolve ( dir: &StdPath, name: &str ) -> PathBuf {
+
+        for entry in Self::entries(dir) {
+
+            if Path::name_of(&entry).eq_ignore_ascii_case(name) { return entry; }
+
+        }
+
+        dir.join(name)
+
+    }
+
     pub fn names ( dir: &StdPath ) -> Vec<String> {
 
         Self::entries(dir).iter().map(|path| Path::name_of(path)).collect()

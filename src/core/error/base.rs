@@ -59,6 +59,30 @@ impl AppError {
 
     }
 
+    pub fn detail ( &self ) -> String {
+
+        let raw = match self {
+            Self::Command { stderr, .. } if !stderr.trim().is_empty() => stderr.lines().find(|line| !line.trim().is_empty()).unwrap_or_default().to_string(),
+            other => other.to_string(),
+        };
+
+        for key in ["\"detail\":\"", "\"message\":\"", "\"error\":\""] {
+
+            if let Some(at) = raw.find(key) {
+
+                let rest = &raw[at + key.len()..];
+                let end = rest.find('"').unwrap_or(rest.len());
+
+                return rest[..end].trim().to_string();
+
+            }
+
+        }
+
+        raw.trim().to_string()
+
+    }
+
     pub fn exit_code ( &self ) -> ExitCode {
 
         ExitCode::from(match self {

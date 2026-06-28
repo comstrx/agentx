@@ -33,8 +33,6 @@ impl Compose {
             ( "report", Self::rel(&paths.report_of(phase, agent), root) ),
             ( "review", Self::rel(&paths.review_of(phase), root) ),
             ( "gate_log", Self::rel(&paths.gate_log, root) ),
-            ( "tests", Self::rel(&paths.tests, root) ),
-            ( "probes", Self::rel(&paths.probes, root) ),
             ( "agent", agent.to_string() ),
         ]
 

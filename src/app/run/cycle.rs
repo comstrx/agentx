@@ -17,6 +17,7 @@ impl Orchestrator {
 
             self.journey.primed = false;
             self.journey.agents_done.clear();
+            self.journey.current_agent.clear();
             self.journey.current_round = 0;
             self.journey.status = Status::Running;
             self.save("resume")?;

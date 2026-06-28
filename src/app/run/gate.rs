@@ -1,6 +1,6 @@
 use std::path::Path as StdPath;
 
-use crate::config::base::consts::TOOL;
+use crate::config::base::consts::{CONFIG_FILE, TOOL};
 use crate::core::error::AppError;
 use crate::core::fs::{File, Path};
 use crate::core::proc::Proc;
@@ -41,7 +41,7 @@ impl Orchestrator {
 
         Halt::Failed(AppError::message(format!(
             "the quality gate TIMED OUT after {secs}s on {unit} ({agent}) — this is environment slowness, NOT a code defect, \
-             so no amount of repair will clear it. Raise [gate].timeout in Agentx.toml (or make the gate command faster), \
+             so no amount of repair will clear it. Raise [gate].timeout in {CONFIG_FILE} (or make the gate command faster), \
              then run `{TOOL} start` to resume exactly here — nothing is lost."
         )))
 

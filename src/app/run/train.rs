@@ -1,5 +1,5 @@
 use crate::config::Train;
-use crate::config::base::consts::{AUDITS, REPORTS_DIR, REQUIRES, TASKS_DIR, TESTS_DIR, TOOL};
+use crate::config::base::consts::{REPORTS_DIR, REQUIRES, TASKS_DIR, TOOL};
 use crate::core::error::AppResult;
 use crate::core::fs::{Dir, File, Path};
 use crate::app::{Compose, Flow, Halt, Orchestrator, Ui};
@@ -97,20 +97,7 @@ impl Orchestrator {
 
         }
 
-        self.archive_trail(kind, AUDITS, &self.cfg.paths.rounds_of(AUDITS));
-        self.archive_trail(kind, TESTS_DIR, &self.cfg.paths.rounds_of(TESTS_DIR));
-
         count
-
-    }
-
-    fn archive_trail ( &self, kind: &str, bucket: &str, dir: &std::path::Path ) {
-
-        for file in Dir::markdown(dir) {
-
-            let _ = Train::record(kind, bucket, &Self::clean_name(&file), &File::read(&file));
-
-        }
 
     }
 

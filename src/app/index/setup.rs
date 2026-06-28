@@ -2,9 +2,10 @@ use std::io::{self, IsTerminal};
 use std::path::Path as StdPath;
 
 use crate::config::{Document, Paths, Spec, Train};
+use crate::config::base::consts::{CACHE_DIR, CONFIG_FILE, DOCS_DIR};
 
 use crate::core::error::{AppError, AppResult};
-use crate::core::fs::{Dir, File};
+use crate::core::fs::{Dir, File, Path};
 use crate::core::term::Term;
 use crate::core::text::Text;
 use crate::app::{App, Flags, Project, Ui};
@@ -15,23 +16,49 @@ impl App {
 
         let paths = Paths::new(dir);
         Train::init()?;
+
+        let inspire = Self::resolve_inspire(&paths, flags)?;
+
+        let had_config = Path::exists(&paths.config_file);
+        let had_cache = Path::exists(&paths.cache);
+        let had_docs = Path::exists(&paths.docs);
+
+        let copied = Self::copy_manifests(&paths, &inspire)?;
         Project::scaffold(&paths)?;
 
         let bound = Self::configure(&paths, flags)?;
-        Self::copy_manifests(&paths, &bound)?;
 
         Ui::blank();
         Ui::ok(&format!("initialised  {}", dir.display()));
 
-        if !bound.is_empty() {
+        if !bound.is_empty() { Ui::detail("inspire", &bound); }
 
-            Ui::detail("inspiration", &bound);
+        Ui::detail("config", &Self::state_note(CONFIG_FILE, had_config));
+        Ui::detail("runtime", &Self::state_note(CACHE_DIR, had_cache));
+        Ui::detail("docs", &Self::state_note(DOCS_DIR, had_docs));
 
-        }
+        if copied > 0 { Ui::detail("manifests", &format!("{copied} file(s) copied from the archetype")); }
 
         Ui::blank();
 
         Ok(())
+
+    }
+
+    fn state_note ( name: &str, existed: bool ) -> String {
+
+        match existed {
+            true => format!("{name}  (already present)"),
+            false => format!("{name}  (created)"),
+        }
+
+    }
+
+    fn resolve_inspire ( paths: &Paths, flags: &Flags ) -> AppResult<String> {
+
+        if let Some(value) = flags.inspire { return Self::select_inspire(value); }
+
+        Ok(Spec::load(&paths.config_file).map(|spec| spec.inspire).unwrap_or_default())
 
     }
 
@@ -59,17 +86,21 @@ impl App {
 
         }
 
-        Self::copy_manifests(paths, &document.project.inspire)
+        Self::copy_manifests(paths, &document.project.inspire)?;
+
+        Ok(())
 
     }
 
-    fn copy_manifests ( paths: &Paths, inspire: &str ) -> AppResult<()> {
+    fn copy_manifests ( paths: &Paths, inspire: &str ) -> AppResult<usize> {
 
-        if inspire.is_empty() { return Ok(()); }
+        if inspire.is_empty() { return Ok(0); }
 
         let source = Train::manifests(inspire);
 
-        if !source.is_dir() { return Ok(()); }
+        if !source.is_dir() { return Ok(0); }
+
+        let mut copied = 0;
 
         for file in Dir::walk(&source) {
 
@@ -85,9 +116,11 @@ impl App {
 
             File::copy(&file, &dest)?;
 
+            copied += 1;
+
         }
 
-        Ok(())
+        Ok(copied)
 
     }
 

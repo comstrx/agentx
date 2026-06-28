@@ -2,12 +2,12 @@ use std::collections::BTreeSet;
 use std::path::Path as StdPath;
 
 use crate::config::Config;
-use crate::config::base::consts::{PROBE_TIMEOUT, TOOL};
+use crate::config::base::consts::{PROBE_PROMPT, PROBE_TIMEOUT, PROBE_TURN_TIMEOUT, TOOL};
 use crate::core::error::{AppError, AppResult};
 use crate::core::env::Env;
 use crate::core::proc::Proc;
 use crate::core::text::Text;
-use crate::config::worker::Worker;
+use crate::config::worker::{Fault, Worker};
 use crate::app::{App, Project, Ui};
 
 impl App {
@@ -43,7 +43,11 @@ impl App {
 
     pub(super) fn ensure_agents ( config: &Config ) -> AppResult<()> {
 
-        if Self::run_checks(config, false) { return Ok(()); }
+        Ui::rule("doctor · checking the dependencies and agents this run needs");
+
+        let ok = Self::run_checks(config, true);
+
+        if ok { return Ok(()); }
 
         Err(AppError::message(format!("a required dependency is missing or broken — run `{TOOL} doctor` for details")))
 
@@ -66,24 +70,69 @@ impl App {
 
         for program in Self::required_programs(config) {
 
-            let ( ok, detail ) = Self::probe(&program);
+            let ( found, detail ) = Self::probe(&program);
 
-            if !ok { all_ok = false; }
+            if !found {
 
-            if ok && verbose {
+                all_ok = false;
+                Ui::cross(0, &format!("{program:<8}  {detail}"));
 
-                Ui::tick(0, &format!("{program:<8}  {detail}"));
+                continue;
 
             }
-            else if !ok {
 
-                Ui::cross(0, &format!("{program:<8}  {detail}"));
+            if program == "sh" {
+
+                if verbose { Ui::tick(0, &format!("{program:<8}  {detail}")); }
+
+                continue;
+
+            }
+
+            let ( works, note ) = Self::probe_agent(config, &program);
+
+            if !works {
+
+                all_ok = false;
+                Ui::cross(0, &format!("{program:<8}  {note}"));
+
+            }
+            else if verbose {
+
+                Ui::tick(0, &format!("{program:<8}  {note}"));
 
             }
 
         }
 
         all_ok
+
+    }
+
+    fn probe_agent ( config: &Config, backend: &str ) -> ( bool, String ) {
+
+        let ( model, effort ) = config.engine(backend);
+        let label = Self::engine_label(&model, &effort);
+
+        let mut worker = Worker::new(backend);
+        worker.cwd(&Env::temp_dir()).timeout(PROBE_TURN_TIMEOUT).engine(&model, &effort);
+
+        match worker.turn(PROBE_PROMPT) {
+            Ok(_) => ( true, format!("{label} — responding") ),
+            Err(error) => match Worker::fault(&error) {
+                Fault::Transient => ( true, format!("{label} — responding") ),
+                _ => ( false, format!("{label} — {}", error.detail().chars().take(140).collect::<String>()) ),
+            }
+        }
+
+    }
+
+    fn engine_label ( model: &str, effort: &str ) -> String {
+
+        let model = if model.trim().is_empty() { "default" } else { model.trim() };
+        let effort = if effort.trim().is_empty() { "default" } else { effort.trim() };
+
+        format!("model {model} · effort {effort}")
 
     }
 

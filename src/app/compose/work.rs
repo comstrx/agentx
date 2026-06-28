@@ -11,6 +11,7 @@ impl Compose {
 
         if has_review { parts.push(P::REVIEW_HANDOFF.to_string()); }
 
+        parts.push(P::OWNERSHIP.to_string());
         parts.push(P::WORK_DISCIPLINE.to_string());
         parts.push(P::REQUIRES_REPORT.to_string());
 
@@ -28,6 +29,7 @@ impl Compose {
 
         parts.push(P::TASKS_REMEDIATION.to_string());
         parts.push(Self::author_policy(cfg));
+        parts.push(P::OWNERSHIP.to_string());
         parts.push(P::WORK_DISCIPLINE.to_string());
         parts.push(P::TASKS_REPORT.to_string());
 
@@ -41,6 +43,7 @@ impl Compose {
 
         if has_review { parts.push(P::REVIEW_HANDOFF.to_string()); }
 
+        parts.push(P::OWNERSHIP.to_string());
         parts.push(P::WORK_DISCIPLINE.to_string());
         parts.push(P::AUDITS_REPORT.to_string());
 
@@ -48,12 +51,15 @@ impl Compose {
 
     }
 
-    pub(crate) fn producer ( cfg: &Config, phase: &str, agent: &str, has_review: bool ) -> String {
+    pub(crate) fn producer ( cfg: &Config, phase: &str, agent: &str, gate_failed: bool, has_review: bool ) -> String {
 
         let mut parts = vec![P::PRODUCE_WORK.to_string()];
 
+        if gate_failed { parts.push(P::PRODUCE_GATE_FAIL.to_string()); }
+
         if has_review { parts.push(P::REVIEW_HANDOFF.to_string()); }
 
+        parts.push(P::OWNERSHIP.to_string());
         parts.push(P::WORK_DISCIPLINE.to_string());
         parts.push(P::PRODUCE_REPORT.to_string());
 

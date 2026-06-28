@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::config::{Config, Train, base::prompts as P};
-use crate::config::base::consts::{CONTRACTS, DESIGNS, HISTORY, OVERVIEW, SKILLS};
+use crate::config::base::consts::{CONTRACTS, DESIGNS, HISTORY, OVERVIEW, REFERENCES, SKILLS};
 use crate::core::fs::{Dir, Path};
 use crate::app::{Compose, Journey, Phase};
 
@@ -103,11 +103,12 @@ impl Compose {
 
         let mut pairs = Self::values(cfg, phase, agent, None);
 
-        pairs.push(( SKILLS,    Self::study_block(cfg, SKILLS) ));
-        pairs.push(( OVERVIEW,  Self::study_block(cfg, OVERVIEW) ));
-        pairs.push(( CONTRACTS, Self::study_block(cfg, CONTRACTS) ));
-        pairs.push(( DESIGNS,   Self::study_block(cfg, DESIGNS) ));
-        pairs.push(( HISTORY,   Self::history_block(cfg) ));
+        pairs.push(( SKILLS,     Self::study_block(cfg, SKILLS) ));
+        pairs.push(( OVERVIEW,   Self::study_block(cfg, OVERVIEW) ));
+        pairs.push(( CONTRACTS,  Self::study_block(cfg, CONTRACTS) ));
+        pairs.push(( DESIGNS,    Self::study_block(cfg, DESIGNS) ));
+        pairs.push(( REFERENCES, Self::study_block(cfg, REFERENCES) ));
+        pairs.push(( HISTORY,    Self::history_block(cfg) ));
 
         pairs
 
@@ -117,10 +118,11 @@ impl Compose {
 
         let files = Path::relative(cfg.context.bucket(name), &cfg.root);
 
-        match files.is_empty() {
-            true => "  (none provided for this project)".to_string(),
-            false => files.into_iter().map(|file| format!("  {file}")).collect::<Vec<_>>().join("\n"),
-        }
+        if files.is_empty() { return "  (none provided for this project)".to_string(); }
+
+        let listed = files.into_iter().map(|file| format!("    {file}")).collect::<Vec<_>>().join("\n");
+
+        format!("  OPEN and READ each file below IN FULL now - study it, do not skim and do not skip one:\n{listed}")
 
     }
 

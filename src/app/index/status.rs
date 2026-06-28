@@ -6,7 +6,7 @@ use crate::config::base::consts::{RUN_LOG, TOOL};
 use crate::core::error::AppResult;
 use crate::core::fs::{Dir, Path};
 use crate::core::proc::Proc;
-use crate::app::{App, Journey, Phase, Project, Status, Ui};
+use crate::app::{App, Journey, Orchestrator, Phase, Project, Status, Ui};
 
 impl App {
 
@@ -83,12 +83,17 @@ impl App {
 
         if running && Path::exists(&log) { Ui::field("logs", &Path::relative_one(&log, &root)); }
 
-        let ( claude, codex ) = Spec::document(&paths.config_file)?.engines();
+        let document = Spec::document(&paths.config_file)?;
 
         Ui::blank();
         Ui::head("Engines  ·  model · effort in use");
-        Ui::field("claude", &format!("model {}  ·  effort {}", claude.0, claude.1));
-        Ui::field("codex", &format!("model {}  ·  effort {}", codex.0, codex.1));
+
+        for name in document.agent.backends() {
+
+            let ( model, effort ) = document.engine_of(name);
+            Ui::field(name, &format!("model {model}  ·  effort {effort}"));
+
+        }
 
         if journey.journey_id.is_empty() {
 
@@ -144,7 +149,7 @@ impl App {
         if total > 0 { Ui::field("tasks", &format!("{shipped}/{total} shipped   {}", Ui::bar(shipped, total))); }
 
         Ui::blank();
-        Ui::head("Workers  ·  sessions");
+        Ui::head("Workers");
 
         if sessions.is_empty() {
 
@@ -153,21 +158,14 @@ impl App {
         }
         else {
 
-            let active_key = Self::active_key(&journey);
-
             for ( key, id ) in &sessions {
 
                 let short = id.get(..8).map(|head| format!("{head}…")).unwrap_or_else(|| id.clone());
-                Ui::worker(key, &short, worker_live && key == &active_key);
+                Ui::field(key, &short);
 
             }
 
         }
-
-        Ui::blank();
-        Ui::head("Pids");
-        Ui::field(TOOL, &Self::pid_line(tool, running));
-        Ui::field("active", &Self::pid_line(active, worker_live));
 
         Ui::blank();
         Ui::head("Sessions");
@@ -188,16 +186,27 @@ impl App {
         }
 
         Ui::blank();
+        Ui::head("Pids");
+        Ui::field(TOOL, &Self::pid_line(tool, running));
+        Ui::field("active", &Self::pid_line(active, worker_live));
+
+        Ui::blank();
+        Ui::head("Now  ·  what's happening");
+
+        let ( who, doing, stage ) = Self::activity(&journey, running);
+
+        Ui::state(&who, running, &doing);
+        Ui::field("phase", &stage);
+
+        Ui::blank();
 
         Ok(journey.status)
 
     }
 
-    fn active_key ( journey: &Journey ) -> String {
+    fn phase_slug ( phase: Phase ) -> &'static str {
 
-        if journey.current_agent.is_empty() { return "manager".to_string(); }
-
-        let phase = match journey.phase {
+        match phase {
             Phase::Requires => "requires",
             Phase::Tasks    => "tasks",
             Phase::Audit    => "audits",
@@ -205,10 +214,55 @@ impl App {
             Phase::Benches  => "benches",
             Phase::Examples => "examples",
             Phase::Fuzzes   => "fuzzes",
-            _ => return "manager".to_string(),
-        };
+            _               => "idle",
+        }
 
-        format!("{phase}-{}", journey.current_agent)
+    }
+
+    fn activity ( journey: &Journey, running: bool ) -> ( String, String, String ) {
+
+        if !running {
+
+            return ( "—".to_string(), "not running".to_string(), Self::phase_slug(journey.phase).to_string() );
+
+        }
+
+        match journey.status {
+            Status::Completed => ( "—".to_string(), "journey complete".to_string(), "completed".to_string() ),
+            Status::Failed    => ( "—".to_string(), if journey.note.is_empty() { "journey failed".to_string() } else { journey.note.clone() }, "failed".to_string() ),
+            Status::Stopped   => ( "—".to_string(), "stopped".to_string(), "stopped".to_string() ),
+            Status::Drained   => ( "—".to_string(), "drained".to_string(), "drained".to_string() ),
+            _ => {
+
+                if !journey.primed {
+
+                    let who = if journey.current_agent.is_empty() { "the team".to_string() } else { journey.current_agent.clone() };
+
+                    return ( who, "being primed — training on the project and contracts".to_string(), "priming".to_string() );
+
+                }
+
+                if !journey.intake_done {
+
+                    return ( "manager".to_string(), "ordering the discovered requirements into a backlog".to_string(), "intake".to_string() );
+
+                }
+
+                let phase = Self::phase_slug(journey.phase);
+                let who = if journey.current_agent.is_empty() { "manager".to_string() } else { journey.current_agent.clone() };
+                let verb = Orchestrator::verb_of(phase);
+
+                let doing = match journey.current_task.is_empty() {
+                    true  => verb.to_string(),
+                    false => format!("{verb} · {}", journey.current_task),
+                };
+
+                let stage = format!("{phase} · round {}", journey.current_round);
+
+                ( who, doing, stage )
+
+            }
+        }
 
     }
 

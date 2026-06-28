@@ -69,7 +69,7 @@ impl Orchestrator {
         Ui::title(&format!("{TOOL} · create"));
         Ui::blank();
         Ui::field("project", &Path::display(&self.cfg.root));
-        Ui::field("type", &self.cfg.spec.inspire);
+        Ui::field("inspire", &self.cfg.spec.inspire);
 
         Ui::rule("priming · training the manager for this archetype");
         Ui::arrow(0, "training the manager");
