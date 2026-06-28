@@ -1,14 +1,14 @@
-use std::collections::HashMap;
-use std::path::Path as StdPath;
+use std::path::{Path as StdPath, PathBuf};
+use std::process::Command;
 use nix::sys::signal::{SigSet, SigmaskHow, Signal, pthread_sigmask};
 use nix::unistd::{Pid, setpgid};
 
 use crate::config::Paths;
+use crate::config::base::consts::TOOL;
 use crate::core::error::{AppError, AppResult};
-use crate::core::fs::File;
-use crate::core::parse::Json;
+use crate::core::fs::{File, Path};
 use crate::core::proc::Proc;
-use crate::app::App;
+use crate::app::{App, Orchestrator, Ui};
 
 impl App {
 
@@ -39,14 +39,29 @@ impl App {
 
     }
 
+    pub(super) fn binary () -> AppResult<PathBuf> {
+
+        std::env::current_exe().map_err(|error| AppError::message(format!("cannot locate the {TOOL} binary: {error}")))
+
+    }
+
+    pub(super) fn launch ( command: Command, log: &StdPath, base: &StdPath, verb: &str, control: &str ) -> AppResult<()> {
+
+        let pid = Proc::detach(command, log)?;
+
+        Ui::blank();
+        Ui::ok(&format!("{verb} — pid {pid}"));
+        Ui::detail("logs", &Path::relative_one(log, base));
+        Ui::detail("control", control);
+        Ui::blank();
+
+        Ok(())
+
+    }
+
     pub(super) fn sessions_of ( path: &StdPath ) -> Vec<( String, String )> {
 
-        let body = File::read(path);
-
-        if body.trim().is_empty() { return Vec::new(); }
-
-        let map: HashMap<String, String> = Json::parse(&body).unwrap_or_default();
-        let mut pairs: Vec<( String, String )> = map.into_iter().filter(|( _, id )| !id.is_empty()).collect();
+        let mut pairs: Vec<( String, String )> = Orchestrator::load_sessions(path).into_iter().collect();
         pairs.sort_by(|a, b| a.0.cmp(&b.0));
 
         pairs

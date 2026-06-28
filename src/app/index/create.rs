@@ -92,10 +92,9 @@ impl App {
         Train::init()?;
         Project::scaffold(&paths)?;
 
-        let exe = std::env::current_exe().map_err(|error| AppError::message(format!("cannot locate the {TOOL} binary: {error}")))?;
         let log = paths.configs.join(RUN_LOG);
 
-        let mut command = Command::new(exe);
+        let mut command = Command::new(Self::binary()?);
         command.arg("new").arg(target).arg("--inspire").arg(inspire);
 
         if let Some(value) = flags.gate { command.arg("--gate").arg(value); }
@@ -104,15 +103,7 @@ impl App {
 
         command.current_dir(target);
 
-        let pid = Proc::detach(command, &log)?;
-
-        Ui::blank();
-        Ui::ok(&format!("creating in the background — pid {pid}"));
-        Ui::detail("logs", &Path::relative_one(&log, target));
-        Ui::detail("control", &format!("{TOOL} status · {TOOL} stop"));
-        Ui::blank();
-
-        Ok(())
+        Self::launch(command, &log, target, "creating in the background", &format!("{TOOL} status · {TOOL} stop"))
 
     }
 

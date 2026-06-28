@@ -6,7 +6,7 @@ use nix::unistd::Pid;
 
 use crate::config::{Paths, Spec, Train};
 use crate::config::base::consts::{CACHE_DIR, RUN_LOG, TOOL};
-use crate::core::error::{AppError, AppResult};
+use crate::core::error::AppResult;
 use crate::core::fs::{File, Path};
 use crate::core::proc::Proc;
 use crate::app::{App, Flags, Journey, Orchestrator, Project, Status, Ui};
@@ -125,10 +125,9 @@ impl App {
 
         Self::ensure_idle(&paths)?;
 
-        let exe = std::env::current_exe().map_err(|error| AppError::message(format!("cannot locate the {TOOL} binary: {error}")))?;
         let log = paths.configs.join(RUN_LOG);
 
-        let mut command = Command::new(exe);
+        let mut command = Command::new(Self::binary()?);
         command.arg("start").arg("--dir").arg(&root);
 
         if let Some(name) = flags.inspire { command.arg("--inspire").arg(name); }
@@ -142,15 +141,7 @@ impl App {
 
         command.current_dir(&root);
 
-        let pid = Proc::detach(command, &log)?;
-
-        Ui::blank();
-        Ui::ok(&format!("started in the background — pid {pid}"));
-        Ui::detail("logs", &Path::relative_one(&log, &root));
-        Ui::detail("control", &format!("{TOOL} status · {TOOL} drain · {TOOL} stop"));
-        Ui::blank();
-
-        Ok(())
+        Self::launch(command, &log, &root, "started in the background", &format!("{TOOL} status · {TOOL} drain · {TOOL} stop"))
 
     }
 

@@ -59,7 +59,7 @@ impl Orchestrator {
 
     }
 
-    pub(super) fn load_sessions ( path: &StdPath ) -> HashMap<String, String> {
+    pub(crate) fn load_sessions ( path: &StdPath ) -> HashMap<String, String> {
 
         let body = File::read(path);
 
