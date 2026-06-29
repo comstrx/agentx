@@ -110,7 +110,7 @@ agentx start --bg                            # or detached — drive it with sta
 | `ignore` / `include` | skip or force-in paths during classification (persisted) |
 | `refresh` | reset the ignore/include lists and re-classify |
 | `info` | read-only snapshot: config, paths, classification, journey |
-| `status` | live run state, progress, workers, pids — `-f/--tail` for a live dashboard |
+| `status` | live run state, progress, workers, pids, and a tail of the live log — `-f/--tail` for a live dashboard |
 | `doctor` | check every required agent CLI + tool is installed and runnable |
 | `sync` | refresh the shipped training, **keep** learned history |
 | `reset` | wipe and re-seed the training center from the binary |

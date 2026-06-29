@@ -4,7 +4,7 @@ use std::path::Path as StdPath;
 use crate::config::{Paths, Spec};
 use crate::config::base::consts::{RUN_LOG, TOOL};
 use crate::core::error::AppResult;
-use crate::core::fs::{Dir, Path};
+use crate::core::fs::{Dir, File, Path};
 use crate::core::proc::Proc;
 use crate::app::{App, Journey, Orchestrator, Phase, Project, Status, Ui};
 
@@ -99,6 +99,7 @@ impl App {
 
             Ui::blank();
             Ui::info(&format!("no journey yet — run `{TOOL} start`"));
+            Self::recent(&log);
             Ui::blank();
 
             return Ok(journey.status);
@@ -121,6 +122,7 @@ impl App {
 
             Ui::field("started", &journey.started_at);
             Ui::field("updated", &journey.updated_at);
+            Self::recent(&log);
             Ui::blank();
 
             return Ok(journey.status);
@@ -198,9 +200,24 @@ impl App {
         Ui::state(&who, running, &doing);
         Ui::field("phase", &stage);
 
+        Self::recent(&log);
+
         Ui::blank();
 
         Ok(journey.status)
+
+    }
+
+    fn recent ( log: &StdPath ) {
+
+        let lines = File::tail(log, 12);
+
+        if lines.is_empty() { return; }
+
+        Ui::blank();
+        Ui::head("Recent  ·  live log");
+
+        for line in &lines { Ui::log(line); }
 
     }
 

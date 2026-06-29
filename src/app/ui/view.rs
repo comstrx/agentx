@@ -40,6 +40,12 @@ impl Ui {
 
     }
 
+    pub fn log ( line: &str ) {
+
+        Self::line(&Self::paint(line, Style::new().bright_black()));
+
+    }
+
     pub fn role ( label: &str, members: &str ) {
 
         Self::line(&format!("      {}  {}{}", Self::paint("▸", Style::new().bright_cyan().bold()), Self::paint(&format!("{label:<12}"), Style::new().bright_black()), Self::paint(members, Style::new().bright_green())));

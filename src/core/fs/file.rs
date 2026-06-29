@@ -31,6 +31,21 @@ impl File {
 
     }
 
+    pub fn tail ( path: &StdPath, count: usize ) -> Vec<String> {
+
+        let mut lines = Self::lines(path);
+
+        while lines.last().is_some_and(|line| line.trim().is_empty()) { lines.pop(); }
+
+        let start = lines.len().saturating_sub(count);
+        let mut out = lines.split_off(start);
+
+        while out.first().is_some_and(|line| line.trim().is_empty()) { out.remove(0); }
+
+        out
+
+    }
+
     pub fn write ( path: &StdPath, body: &str ) -> AppResult<()> {
 
         if let Some(parent) = path.parent() {
