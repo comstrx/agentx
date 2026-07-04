@@ -27,7 +27,7 @@ impl Orchestrator {
 
             if self.cfg.context.requires.is_empty() {
 
-                return Err(AppError::message(format!("nothing to do — add a requirement (a Requirements.md at the project root, or a file under {DOCS_DIR}/{REQUIRES}/) then run start")).into());
+                return Err(AppError::message(format!("nothing to do — add a requirement (a Requirements.md at the project root, a {DOCS_DIR}/{REQUIRES}.md, or files under {DOCS_DIR}/{REQUIRES}/) then run start")).into());
 
             }
 
@@ -36,8 +36,6 @@ impl Orchestrator {
         }
 
         self.prime()?;
-
-        self.discover()?;
 
         self.intake()?;
 

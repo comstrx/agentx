@@ -1,8 +1,9 @@
 use std::path::Path as StdPath;
+use std::time::Instant;
 
 use crate::core::error::AppResult;
 use crate::core::fs::{Dir, File, Path};
-use crate::app::{Compose, Flow, Gate, Orchestrator, Ui};
+use crate::app::{Compose, Flow, Gate, Mark, Orchestrator, Ui};
 
 impl Orchestrator {
 
@@ -21,11 +22,13 @@ impl Orchestrator {
             self.save("round")?;
 
             Ui::beat(depth, &format!("round {round}/{max}"));
+            Ui::blank();
 
             let gate_ok = self.roster_pass(phase, roster, task, round > 1)?;
             self.check_drain()?;
 
-            let action = self.manager_review(phase, task, round)?;
+            let action = self.manager_review(phase, task, round, gate_ok)?;
+            Ui::blank();
             self.check_drain()?;
 
             if action == "ship" && ( !Self::gates(phase) || gate_ok ) {
@@ -72,12 +75,13 @@ impl Orchestrator {
 
             Ui::arrow(depth, &activity);
 
+            let started = Instant::now();
             let prompt = self.build_prompt(phase, agent, task, !gate_ok, has_review);
             let turn = self.worker_turn(phase, agent, task, &prompt);
 
             if !self.survive(phase, agent, depth, turn)? { continue; }
 
-            Ui::tick(depth, &format!("{agent} wrote {}", Path::relative_one(&self.cfg.paths.report_of(phase, agent), &self.cfg.root)));
+            Ui::done(depth, Mark::Ok, &format!("{agent} wrote {}", Path::relative_one(&self.cfg.paths.report_of(phase, agent), &self.cfg.root)), started);
 
             if Self::gates(phase) {
 
@@ -91,7 +95,10 @@ impl Orchestrator {
 
                     let repair = self.build_prompt(phase, agent, task, true, false);
 
-                    self.worker_turn(phase, agent, task, &repair)?;
+                    let turn = self.worker_turn(phase, agent, task, &repair);
+
+                    if !self.survive(phase, agent, depth, turn)? { break; }
+
                     gate = self.gate_step(depth)?;
 
                 }
@@ -109,6 +116,8 @@ impl Orchestrator {
                 }
 
             }
+
+            Ui::blank();
 
             self.journey.agents_done.push(agent.clone());
             self.journey.agents_pending.retain(|pending| pending != agent);
@@ -129,7 +138,13 @@ impl Orchestrator {
             "requires" => Compose::architect(&self.cfg, agent, has_review),
             "tasks" => Compose::executor(&self.cfg, agent, task.unwrap_or_else(|| StdPath::new("")), gate_failed, has_review),
             "audits" => Compose::auditor(&self.cfg, agent, has_review),
-            "tests" | "benches" | "examples" | "fuzzes" => Compose::producer(&self.cfg, phase, agent, gate_failed, has_review),
+            "tests" | "benches" | "examples" | "fuzzes" => {
+
+                let shipped: Vec<String> = self.journey.task_status.iter().filter(|( _, status )| status.as_str() == "shipped").map(|( name, _ )| name.clone()).collect();
+
+                Compose::producer(&self.cfg, phase, agent, &shipped, gate_failed, has_review)
+
+            },
             _ => String::new(),
         }
 

@@ -1,7 +1,7 @@
 use std::path::Path as StdPath;
 
 use crate::config::{Paths, Train};
-use crate::config::base::consts::{CACHE_DIR, CONFIG_FILE, TOOL};
+use crate::config::base::consts::{CACHE_DIR, CONFIG_FILE, PHASES, TOOL};
 use crate::core::error::AppResult;
 use crate::core::fs::Path;
 use crate::core::proc::Proc;
@@ -36,18 +36,27 @@ impl App {
         Ui::field("cache", &Path::relative_one(&paths.cache, &root));
 
         let kind = match spec.inspire.is_empty() {
-            true => format!("(unbound — run `{TOOL} init` to classify)"),
+            true => format!("(unbound — set --inspire or let `{TOOL} start` classify it)"),
             false => spec.inspire.clone(),
         };
 
         Ui::field("inspire", &kind);
 
-        let live = match Proc::read_pid(&paths.pid) {
-            Some(pid) if Proc::is_alive(pid) => format!("running (pid {pid})"),
+        let tool = Proc::read_pid(&paths.pid);
+        let active = Proc::read_pid(&paths.active);
+        let running = tool.is_some_and(Proc::is_alive);
+
+        let live = match ( running, tool ) {
+            ( true, Some(pid) ) => format!("running (pid {pid})"),
             _ => "idle".to_string(),
         };
 
         Ui::field("run state", &live);
+
+        Ui::blank();
+        Ui::head("Pids");
+        Ui::field(TOOL, &Self::pid_line(tool, running));
+        Ui::field("active", &Self::pid_line(active, active.is_some_and(Proc::is_alive)));
 
         Ui::blank();
         Ui::head(&format!("Config  ·  [project]  ({CONFIG_FILE})"));
@@ -86,14 +95,14 @@ impl App {
         Ui::pair("max_rounds", &config.agent.max_rounds.to_string());
         Ui::pair("max_fixes", &config.agent.max_fixes.to_string());
         Ui::pair("timeout", &config.agent.timeout.to_string());
-        Ui::pair("manager", &format!("{:?}", config.agent.manager));
-        Ui::pair("requires", &format!("{:?}", config.agent.requires));
-        Ui::pair("tasks", &format!("{:?}", config.agent.tasks));
-        Ui::pair("audits", &format!("{:?}", config.agent.audits));
-        Ui::pair("tests", &format!("{:?}", config.agent.tests));
-        Ui::pair("benches", &format!("{:?}", config.agent.benches));
-        Ui::pair("examples", &format!("{:?}", config.agent.examples));
-        Ui::pair("fuzzes", &format!("{:?}", config.agent.fuzzes));
+        Ui::pair("manager", &config.agent.manager.label());
+        Ui::pair("requires", &config.agent.requires.label());
+        Ui::pair("tasks", &config.agent.tasks.label());
+        Ui::pair("audits", &config.agent.audits.label());
+        Ui::pair("tests", &config.agent.tests.label());
+        Ui::pair("benches", &config.agent.benches.label());
+        Ui::pair("examples", &config.agent.examples.label());
+        Ui::pair("fuzzes", &config.agent.fuzzes.label());
 
         Ui::blank();
         Ui::head("Rosters (expanded)");
@@ -107,26 +116,19 @@ impl App {
         Ui::field("fuzzes", &config.roster("fuzzes").join(" "));
 
         Ui::blank();
-        Ui::head("Engines (model · effort · empty field → strong default)");
-        Ui::field("claude", &Self::engine_line(config.engine("claude")));
-        Ui::field("codex", &Self::engine_line(config.engine("codex")));
+        Ui::head("Engines (per seat · model · effort · empty field → strong default)");
 
-        Ui::blank();
-        Ui::head(&format!("Paths ({CACHE_DIR} runtime)"));
-        Ui::field("state", &Path::relative_one(&paths.state, &root));
-        Ui::field("sessions", &Path::relative_one(&paths.sessions, &root));
-        Ui::field("pid", &Path::relative_one(&paths.pid, &root));
-        Ui::field("active", &Path::relative_one(&paths.active, &root));
-        Ui::field("inbox", &Path::relative_one(&paths.inbox, &root));
-        Ui::field("tasks", &Path::relative_one(&paths.tasks, &root));
-        Ui::field("reports", &Path::relative_one(&paths.reports, &root));
-        Ui::field("rounds", &Path::relative_one(&paths.rounds, &root));
-        Ui::field("gate_log", &Path::relative_one(&paths.gate_log, &root));
+        Ui::field("manager", &Self::engine_line(config.engine_of_key("manager")));
 
-        Ui::blank();
-        Ui::head("Classification (briefing files injected per bucket)");
+        for phase in PHASES {
 
-        Self::classification(&config, &root);
+            for seat in config.roster(phase) {
+
+                Ui::field(&format!("{phase} {seat}"), &Self::engine_line(config.engine_of_key(&format!("{phase}-{seat}"))));
+
+            }
+
+        }
 
         Ui::blank();
         Ui::head("Journey (state.json)");
@@ -187,6 +189,42 @@ impl App {
                 Ui::field(key, id);
 
             }
+
+        }
+
+        Ui::blank();
+        Ui::head(&format!("Paths ({CACHE_DIR} runtime)"));
+        Ui::field("state", &Path::relative_one(&paths.state, &root));
+        Ui::field("sessions", &Path::relative_one(&paths.sessions, &root));
+        Ui::field("pid", &Path::relative_one(&paths.pid, &root));
+        Ui::field("active", &Path::relative_one(&paths.active, &root));
+        Ui::field("inbox", &Path::relative_one(&paths.inbox, &root));
+        Ui::field("tasks", &Path::relative_one(&paths.tasks, &root));
+        Ui::field("reports", &Path::relative_one(&paths.reports, &root));
+        Ui::field("rounds", &Path::relative_one(&paths.rounds, &root));
+        Ui::field("gate_log", &Path::relative_one(&paths.gate_log, &root));
+
+        let kind = spec.inspire.trim();
+
+        if !kind.is_empty() {
+
+            for node in Train::trace(kind).1 { Ui::warn(&format!("missing node: {node}  (a dependency points to a node that does not exist)")); }
+
+        }
+
+        Ui::blank();
+        Ui::head("Classification (briefing files injected per bucket)");
+
+        Self::classification(&config, &root);
+
+        let unmatched = Project::unmatched(&paths.docs);
+
+        if !unmatched.is_empty() {
+
+            Ui::blank();
+            Ui::head("Unmatched (inside agentx/ but not classified — fix the name)");
+
+            for path in &unmatched { Ui::warn(&Path::relative_one(path, &root)); }
 
         }
 

@@ -21,14 +21,14 @@ name = "agentx"
 path = "src/main.rs"
 
 [dependencies]
-clap          = { version = "4.6.1", features = ["derive"] }
-clap_complete = "4.6.1"
-clap_mangen   = "0.3.0"
 nix           = { version = "0.31.3", features = ["process", "signal", "term"] }
 serde         = { version = "1.0.228", features = ["derive"] }
 tokio         = { version = "1.52.3", features = ["rt-multi-thread", "time", "macros"] }
 uuid          = { version = "1.23.3", features = ["v4"] }
 reqwest       = { version = "0.13.4", default-features = false, features = ["rustls", "http2"] }
+clap          = { version = "4.6.1", features = ["derive"] }
+clap_complete = "4.6.1"
+clap_mangen   = "0.3.0"
 include_dir   = "0.7.4"
 thiserror     = "2.0.18"
 serde_json    = "1.0.150"
@@ -57,7 +57,6 @@ incremental      = false
 opt-level     = 0
 codegen-units = 256
 
-# The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
 lto = "thin"

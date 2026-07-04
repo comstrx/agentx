@@ -48,8 +48,16 @@ impl Term {
     fn read_escape ( reader: &mut impl Read ) -> Key {
 
         let mut seq = [0u8; 2];
+        let mut filled = 0;
 
-        if reader.read(&mut seq).unwrap_or(0) < 2 { return Key::Cancel; }
+        while filled < 2 {
+
+            match reader.read(&mut seq[filled..]) {
+                Ok(0) | Err(_) => return Key::Cancel,
+                Ok(count) => filled += count,
+            }
+
+        }
 
         match &seq {
             b"[A" => Key::Up,

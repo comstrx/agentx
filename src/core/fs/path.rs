@@ -64,6 +64,12 @@ impl Path {
 
     }
 
+    pub fn hidden_in ( path: &StdPath, dir: &StdPath ) -> bool {
+
+        Self::name_of(path).starts_with('.') && path.parent() == Some(dir)
+
+    }
+
     pub fn relative_one ( path: &StdPath, root: &StdPath ) -> String {
 
         match path.strip_prefix(root) {

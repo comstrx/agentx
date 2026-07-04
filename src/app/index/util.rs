@@ -5,12 +5,20 @@ use nix::unistd::{Pid, setpgid};
 
 use crate::config::Paths;
 use crate::config::base::consts::TOOL;
+use crate::core::env::Env;
 use crate::core::error::{AppError, AppResult};
 use crate::core::fs::{File, Path};
 use crate::core::proc::Proc;
+use crate::core::term::Term;
 use crate::app::{App, Orchestrator, Ui};
 
 impl App {
+
+    pub(super) fn interactive () -> bool {
+
+        Term::is_tty() && Term::ansi() && !Env::has("CI")
+
+    }
 
     pub(super) fn ensure_idle ( paths: &Paths ) -> AppResult<()> {
 

@@ -181,6 +181,38 @@ impl Text {
 
     }
 
+    pub fn unprefix ( name: &str ) -> &str {
+
+        let digits = name.chars().take_while(|c| c.is_ascii_digit()).count();
+
+        match digits >= 1 && name.as_bytes().get(digits) == Some(&b'_') {
+            true => &name[digits + 1..],
+            false => name,
+        }
+
+    }
+
+    pub fn plain ( text: &str ) -> String {
+
+        let mut out = String::with_capacity(text.len());
+        let mut chars = text.chars();
+
+        while let Some(c) = chars.next() {
+
+            if c != '\x1b' { out.push(c); continue; }
+
+            match chars.next() {
+                Some('[') => { for c in chars.by_ref() { if ( '\x40'..='\x7e' ).contains(&c) { break; } } }
+                Some(']') => { for c in chars.by_ref() { if c == '\x07' { break; } } }
+                _ => {}
+            }
+
+        }
+
+        out
+
+    }
+
     pub fn first_line ( body: &str ) -> &str {
 
         body.lines().find(|line| !line.trim().is_empty()).unwrap_or("").trim()

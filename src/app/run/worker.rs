@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::config::base::consts::AGENT_RETRIES;
+use crate::config::base::consts::{AGENT_RETRIES, BACKOFF_CAP, BACKOFF_SHIFT};
 use crate::core::error::{AppError, AppResult};
 use crate::core::proc::Proc;
 use crate::config::worker::{Fault, Worker};
@@ -12,7 +12,7 @@ impl Orchestrator {
 
         if !self.live.contains_key(key) {
 
-            let ( model, effort ) = self.cfg.engine(agent);
+            let ( model, effort ) = self.cfg.engine_of_key(key);
 
             let mut runner = Worker::new(agent);
             runner.cwd(&self.cfg.root).timeout(self.cfg.agent.timeout).pid_file(&self.cfg.paths.active);
@@ -201,7 +201,7 @@ impl Orchestrator {
 
     pub(super) fn backoff ( &self, attempt: u32 ) -> Flow<()> {
 
-        let seconds = ( 1u64 << attempt.min(4) ).min(15);
+        let seconds = ( 1u64 << attempt.min(BACKOFF_SHIFT) ).min(BACKOFF_CAP);
 
         for _ in 0..seconds {
 

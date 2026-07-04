@@ -5,7 +5,7 @@ use nix::sys::signal::{Signal, killpg};
 use nix::unistd::Pid;
 
 use crate::config::{Paths, Spec, Train};
-use crate::config::base::consts::{CACHE_DIR, RUN_LOG, TOOL};
+use crate::config::base::consts::{CACHE_DIR, DOCS_DIR, RUN_LOG, TOOL};
 use crate::core::error::AppResult;
 use crate::core::fs::{File, Path};
 use crate::core::proc::Proc;
@@ -50,6 +50,9 @@ impl App {
         }
 
         let config = Project::assemble(&root)?;
+
+        Self::warn_unmatched(&config.paths.docs, &root);
+        Self::warn_training(&config.spec.inspire);
 
         Self::ensure_agents(&config)?;
 
@@ -301,6 +304,45 @@ impl App {
         if journey.journey_id.is_empty() { return String::new(); }
 
         format!(" (phase {:?}, round {})", journey.phase, journey.current_round)
+
+    }
+
+    pub(super) fn warn_unmatched ( docs: &StdPath, root: &StdPath ) {
+
+        let stray = Project::unmatched(docs);
+
+        if stray.is_empty() { return; }
+
+        Ui::blank();
+        Ui::warn(&format!("{} item(s) in {DOCS_DIR}/ are NOT recognized and will be IGNORED — fix the name:", stray.len()));
+
+        for path in &stray { Ui::dot(1, &Path::relative_one(path, root)); }
+
+    }
+
+    pub(super) fn warn_training ( inspire: &str ) {
+
+        let kind = inspire.trim();
+
+        if kind.is_empty() { return; }
+
+        let ( chain, missing ) = Train::trace(kind);
+
+        if chain.is_empty() && Train::history_reports(kind).is_empty() {
+
+            Ui::blank();
+            Ui::warn(&format!("inspire '{kind}' resolves to no project node and no history — running with the project's own files only"));
+
+        }
+
+        if !missing.is_empty() {
+
+            Ui::blank();
+            Ui::warn(&format!("{} dependency node(s) declared but missing — that knowledge will NOT be injected:", missing.len()));
+
+            for node in &missing { Ui::dot(1, node); }
+
+        }
 
     }
 

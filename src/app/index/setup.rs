@@ -1,8 +1,7 @@
-use std::io::{self, IsTerminal};
 use std::path::Path as StdPath;
 
 use crate::config::{Document, Paths, Spec, Train};
-use crate::config::base::consts::{CACHE_DIR, CONFIG_FILE, DOCS_DIR};
+use crate::config::base::consts::{CACHE_DIR, CONFIG_FILE, DOCS_DIR, TOOL};
 
 use crate::core::error::{AppError, AppResult};
 use crate::core::fs::{Dir, File, Path};
@@ -27,17 +26,21 @@ impl App {
         Project::scaffold(&paths)?;
 
         let bound = Self::configure(&paths, flags)?;
+        let bound = Self::offer_inspire(&paths, bound)?;
+        let gate = Self::offer_gate(&paths)?;
 
         Ui::blank();
         Ui::ok(&format!("initialised  {}", dir.display()));
 
         if !bound.is_empty() { Ui::detail("inspire", &bound); }
 
+        if !gate.is_empty() { Ui::detail("gate", &gate); }
+
         Ui::detail("config", &Self::state_note(CONFIG_FILE, had_config));
         Ui::detail("runtime", &Self::state_note(CACHE_DIR, had_cache));
         Ui::detail("docs", &Self::state_note(DOCS_DIR, had_docs));
 
-        if copied > 0 { Ui::detail("manifests", &format!("{copied} file(s) copied from the archetype")); }
+        if copied > 0 { Ui::detail("manifests", &format!("{copied} file(s) copied from the project node")); }
 
         Ui::blank();
 
@@ -75,16 +78,43 @@ impl App {
 
     }
 
-    pub(super) fn autofill ( paths: &Paths ) -> AppResult<()> {
+    fn offer_inspire ( paths: &Paths, bound: String ) -> AppResult<String> {
+
+        if !bound.is_empty() || !Self::interactive() { return Ok(bound); }
+
+        let Some(name) = Self::choose_inspire(true)? else { return Ok(bound) };
 
         let mut document = Spec::document(&paths.config_file)?;
+        document.project.inspire = name.clone();
+        document.save(&paths.config_file)?;
 
-        if document.project.inspire.is_empty() && io::stdin().is_terminal() && let Some(name) = Self::choose_inspire(true)? {
+        Self::copy_manifests(paths, &name)?;
 
-            document.project.inspire = name;
-            document.save(&paths.config_file)?;
+        Ok(name)
 
-        }
+    }
+
+    fn offer_gate ( paths: &Paths ) -> AppResult<String> {
+
+        let mut document = Spec::document(&paths.config_file)?;
+        let current = document.gate.command.trim().to_string();
+
+        if !current.is_empty() || !Self::interactive() { return Ok(current); }
+
+        Ui::blank();
+
+        let Some(command) = Ui::ask("  set the quality gate — one read-only shell command", "(enter to skip · the manager composes one after studying the project)")? else { return Ok(current) };
+
+        document.gate.command = command.clone();
+        document.save(&paths.config_file)?;
+
+        Ok(command)
+
+    }
+
+    pub(super) fn autofill ( paths: &Paths ) -> AppResult<()> {
+
+        let document = Spec::document(&paths.config_file)?;
 
         Self::copy_manifests(paths, &document.project.inspire)?;
 
@@ -104,7 +134,7 @@ impl App {
 
         for file in Dir::walk(&source) {
 
-            if !file.is_file() { continue; }
+            if !file.is_file() || Path::hidden_in(&file, &source) { continue; }
 
             let Ok(rel) = file.strip_prefix(&source) else { continue; };
 
@@ -193,30 +223,47 @@ impl App {
 
     pub(super) fn select_inspire ( value: &str ) -> AppResult<String> {
 
-        let types = Train::available();
+        let projects = Train::available();
+        let histories = Train::history_kinds();
         let input = value.trim();
 
         if let Ok(number) = input.parse::<usize>() {
 
-            if number >= 1 && number <= types.len() { return Ok(types[number - 1].clone()); }
+            if number >= 1 && number <= projects.len() { return Ok(projects[number - 1].clone()); }
 
-            return Err(AppError::message(format!("--inspire {number} is out of range - choose 1 to {}", types.len())));
+            if projects.is_empty() { return Err(AppError::message(format!("--inspire {number} points at nothing - the training center has no project nodes yet; pass a name instead"))); }
+
+            return Err(AppError::message(format!("--inspire {number} is out of range - choose 1 to {}", projects.len())));
 
         }
 
-        let slug = Text::slug(input);
+        let wanted = Text::slug(Text::unprefix(input));
 
-        if types.iter().any(|item| item == &slug) { return Ok(slug); }
+        if let Some(name) = projects.iter().find(|item| Text::slug(item) == wanted) { return Ok(name.clone()); }
+
+        if let Some(name) = histories.iter().find(|item| Text::slug(item) == wanted) { return Ok(name.clone()); }
 
         let mut known = String::new();
 
-        for ( index, item ) in types.iter().enumerate() {
+        if !projects.is_empty() {
 
-            known.push_str(&format!("\n  {}) {item}", index + 1));
+            known.push_str("\n  project nodes:");
+
+            for ( index, item ) in projects.iter().enumerate() { known.push_str(&format!("\n    {}) {item}", index + 1)); }
 
         }
 
-        Err(AppError::message(format!("unknown inspiration '{value}' - known training-center archetypes:{known}")))
+        let history_only: Vec<&String> = histories.iter().filter(|item| !projects.iter().any(|node| node.eq_ignore_ascii_case(item))).collect();
+
+        if !history_only.is_empty() {
+
+            known.push_str("\n  history kinds:");
+
+            for item in &history_only { known.push_str(&format!("\n    - {item}")); }
+
+        }
+
+        Err(AppError::message(format!("unknown inspiration '{value}' - known:{known}")))
 
     }
 
@@ -233,14 +280,15 @@ impl App {
         for name in &types {
 
             let title = Train::title(name);
-            options.push(if title.is_empty() { name.clone() } else { format!("{name}  ·  {title}") });
+            options.push(if title.is_empty() { name.clone() } else { title });
 
         }
 
         Ui::blank();
 
-        let hint = if allow_auto { "↑/↓ move · enter choose · q auto" } else { "↑/↓ move · enter choose · required" };
-        let picked = Term::select(&format!("  select the inspiration archetype   ({hint})"), &options, 0)?;
+        let keys = if Term::icons() { "↑/↓ move" } else { "j/k move" };
+        let hint = if allow_auto { format!("{keys} · enter choose · q auto") } else { format!("{keys} · enter choose · required") };
+        let picked = Ui::choose(&format!("  select the inspiration project node   ({hint})"), &options, 0)?;
 
         let base = usize::from(allow_auto);
 
@@ -249,6 +297,129 @@ impl App {
             Some(0) if allow_auto => Ok(None),
             Some(index) => Ok(Some(types[index - base].clone())),
         }
+
+    }
+
+    pub fn inspire ( dir: &StdPath, name: Option<&str> ) -> AppResult<()> {
+
+        let root = Project::resolve_root(dir);
+        let paths = Paths::new(&root);
+
+        if !Path::exists(&paths.config_file) {
+
+            return Err(AppError::message(format!("no {CONFIG_FILE} here — run `{TOOL} init` first")));
+
+        }
+
+        Train::init()?;
+
+        let mut document = Spec::document(&paths.config_file)?;
+        let current = document.project.inspire.trim().to_string();
+
+        let picked = match name {
+            Some(value) => Self::select_inspire(value)?,
+            None if !Term::is_tty() => return Err(AppError::message(format!("no TTY for the menu — pass the node explicitly: `{TOOL} inspire <name|N>`"))),
+            None => match Self::choose_inspire(false)? {
+                Some(node) => node,
+                None => {
+
+                    Ui::blank();
+                    Ui::point(0, "cancelled — inspire unchanged");
+                    Ui::blank();
+
+                    return Ok(());
+
+                }
+            },
+        };
+
+        if picked == current {
+
+            Ui::blank();
+            Ui::point(0, &format!("inspire unchanged — already bound to {picked}"));
+            Ui::blank();
+
+            return Ok(());
+
+        }
+
+        document.project.inspire = picked.clone();
+        document.save(&paths.config_file)?;
+
+        Ui::blank();
+        Ui::ok(&format!("inspire bound · {picked}"));
+
+        let title = Train::title(&picked);
+
+        if !title.is_empty() { Ui::detail("node", &title); }
+
+        if !current.is_empty() { Ui::detail("was", &current); }
+
+        Self::warn_training(&picked);
+        Ui::blank();
+
+        Ok(())
+
+    }
+
+    pub fn gate ( dir: &StdPath, command: Option<&str> ) -> AppResult<()> {
+
+        let root = Project::resolve_root(dir);
+        let paths = Paths::new(&root);
+
+        if !Path::exists(&paths.config_file) {
+
+            return Err(AppError::message(format!("no {CONFIG_FILE} here — run `{TOOL} init` first")));
+
+        }
+
+        let mut document = Spec::document(&paths.config_file)?;
+        let current = document.gate.command.trim().to_string();
+
+        let picked = match command {
+            Some(value) if !value.trim().is_empty() => value.trim().to_string(),
+            _ if !Self::interactive() => return Err(AppError::message(format!("no TTY for the prompt — pass the command explicitly: `{TOOL} gate <COMMAND>` (or -g)"))),
+            _ => {
+
+                Ui::blank();
+
+                match Ui::ask("  set the quality gate — one read-only shell command", "(enter to cancel)")? {
+                    Some(value) => value,
+                    None => {
+
+                        Ui::blank();
+                        Ui::point(0, "cancelled — gate unchanged");
+                        Ui::blank();
+
+                        return Ok(());
+
+                    }
+                }
+
+            }
+        };
+
+        if picked == current {
+
+            Ui::blank();
+            Ui::point(0, "gate unchanged — already set to that command");
+            Ui::blank();
+
+            return Ok(());
+
+        }
+
+        document.gate.command = picked.clone();
+        document.save(&paths.config_file)?;
+
+        Ui::blank();
+        Ui::ok(&format!("gate set · {picked}"));
+
+        if !current.is_empty() { Ui::detail("was", &current); }
+
+        Ui::blank();
+
+        Ok(())
 
     }
 

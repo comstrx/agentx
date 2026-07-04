@@ -1,12 +1,11 @@
-use crate::config::base::consts::{CLAUDE_EFFORT, CLAUDE_MODEL, CODEX_EFFORT, CODEX_MODEL};
-use crate::config::worker::Worker;
+use crate::config::Member;
 use super::arch::Config;
 
 impl Config {
 
     pub fn manager ( &self ) -> &str {
 
-        &self.agent.manager
+        &self.agent.manager.agent
 
     }
 
@@ -16,11 +15,25 @@ impl Config {
 
     }
 
-    pub fn engine ( &self, agent: &str ) -> ( String, String ) {
+    pub fn resolve_member ( &self, member: &Member ) -> ( String, String ) {
 
-        match Worker::resolve(agent) {
-            Some("codex") => self.codex.resolved(CODEX_MODEL, CODEX_EFFORT),
-            _             => self.claude.resolved(CLAUDE_MODEL, CLAUDE_EFFORT),
+        member.resolved(&self.claude, &self.codex)
+
+    }
+
+    pub fn engine_of_key ( &self, key: &str ) -> ( String, String ) {
+
+        self.resolve_member(&self.member_of_key(key))
+
+    }
+
+    fn member_of_key ( &self, key: &str ) -> Member {
+
+        if key == "manager" { return self.agent.manager.clone(); }
+
+        match key.split_once('-') {
+            Some(( phase, seat )) => self.agent.member(phase, seat).unwrap_or_else(|| Member::backend(seat)),
+            None => Member::backend(key),
         }
 
     }

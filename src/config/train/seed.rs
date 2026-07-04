@@ -4,7 +4,7 @@ use include_dir::{Dir as Embedded, DirEntry, include_dir};
 use crate::core::error::AppResult;
 use crate::core::env::Env;
 use crate::core::fs::{Dir, File};
-use crate::config::base::consts::{CACHE_DIR, HISTORY, TRAIN_DIR};
+use crate::config::base::consts::{BASE_DIR, CACHE_DIR, HISTORY_DIR, PROJECT_DIR};
 use super::arch::Train;
 
 pub(super) static INCLUDE: Embedded<'static> = include_dir!("$CARGO_MANIFEST_DIR/seed");
@@ -75,7 +75,7 @@ impl Train {
 
     fn is_history ( path: &StdPath ) -> bool {
 
-        path.components().any(|part| part.as_os_str() == HISTORY)
+        path.components().next().is_some_and(|part| part.as_os_str() == HISTORY_DIR)
 
     }
 
@@ -85,9 +85,21 @@ impl Train {
 
     }
 
-    pub(super) fn trains () -> PathBuf {
+    pub(crate) fn base () -> PathBuf {
 
-        Self::store().join(TRAIN_DIR)
+        Self::store().join(BASE_DIR)
+
+    }
+
+    pub(crate) fn projects () -> PathBuf {
+
+        Self::store().join(PROJECT_DIR)
+
+    }
+
+    pub(crate) fn histories () -> PathBuf {
+
+        Self::store().join(HISTORY_DIR)
 
     }
 

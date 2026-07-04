@@ -1,8 +1,9 @@
-use std::path::Path as StdPath;
+use std::path::{Path as StdPath, PathBuf};
+use std::time::Instant;
 
 use crate::config::base::consts::MD_EXT;
 use crate::core::fs::{Dir, File, Path};
-use crate::app::{Flow, Orchestrator, Phase, Ui};
+use crate::app::{Flow, Mark, Orchestrator, Phase, Ui};
 
 impl Orchestrator {
 
@@ -12,12 +13,13 @@ impl Orchestrator {
 
         Ui::rule("phase · requires · architects shape the task plan");
 
+        let started = Instant::now();
         let roster = self.cfg.roster("requires");
         let shipped = self.run_phase("requires", &roster, None)?;
 
         if shipped {
 
-            Ui::tick(1, "requires shipped — the task plan is ready");
+            Ui::done(1, Mark::Cool, "requires shipped — the task plan is ready", started);
 
         }
         else {
@@ -72,6 +74,9 @@ impl Orchestrator {
             }
 
             Ui::beat(1, &format!("task {}/{total} · {name}", index + 1));
+            Ui::blank();
+
+            let started = Instant::now();
 
             self.journey.current_task = name.clone();
             self.journey.current_round = 0;
@@ -86,7 +91,7 @@ impl Orchestrator {
 
             if shipped {
 
-                Ui::tick(1, &format!("task {name} shipped"));
+                Ui::done(1, Mark::Cool, &format!("task {name} shipped"), started);
 
             }
             else {
@@ -115,19 +120,28 @@ impl Orchestrator {
 
         if !self.cfg.option.audits {
 
-            Ui::dot(0, "skipping the audit phase — [option].audits is off");
+            Ui::dot(0, "skipping the audits phase — [option].audits is off");
 
             return Ok(());
 
         }
 
-        Ui::rule("phase · audit · auditors hunt integration & quality defects across the whole system");
+        Ui::rule("phase · audits · auditors hunt integration & quality defects across the whole system");
 
         let max = self.cfg.agent.max_audits;
         let roster = self.cfg.roster("audits");
         let audit_dir = self.cfg.paths.audit.clone();
 
         loop {
+
+            let leftover = Dir::markdown(&audit_dir);
+
+            if !leftover.is_empty() && self.audit_approved(&leftover) {
+
+                self.run_tasks(&audit_dir)?;
+                self.promote_audit_tasks()?;
+
+            }
 
             if self.journey.current_audit >= max {
 
@@ -142,6 +156,7 @@ impl Orchestrator {
             self.save("audit:round")?;
 
             Ui::beat(1, &format!("audit round {round}/{max}"));
+            Ui::blank();
 
             Dir::clear_files(&audit_dir);
 
@@ -151,7 +166,7 @@ impl Orchestrator {
 
             if pending.is_empty() {
 
-                Ui::tick(1, "audit clean — no remediation needed, the system holds");
+                Ui::mark(1, Mark::Cool, "audit clean — no remediation needed, the system holds");
                 break;
 
             }
@@ -160,8 +175,7 @@ impl Orchestrator {
 
             for task in &pending { self.journey.task_status.remove(&Path::name_of(task)); }
 
-            self.run_tasks(&audit_dir)?;
-            self.promote_audit_tasks()?;
+            self.save("audit:tasks")?;
 
         }
 
@@ -169,7 +183,15 @@ impl Orchestrator {
 
     }
 
-    fn promote_audit_tasks ( &self ) -> Flow<()> {
+    fn audit_approved ( &self, pending: &[PathBuf] ) -> bool {
+
+        if self.journey.last_action == "audit:tasks" { return true; }
+
+        pending.iter().any(|task| self.journey.task_status.contains_key(&Path::name_of(task)))
+
+    }
+
+    fn promote_audit_tasks ( &mut self ) -> Flow<()> {
 
         let mut next = Dir::markdown(&self.cfg.paths.tasks).iter().filter_map(|task| Self::task_number(task)).max().unwrap_or(0);
 
@@ -181,7 +203,15 @@ impl Orchestrator {
 
             File::rename(&task, &dest)?;
 
+            if let Some(status) = self.journey.task_status.remove(&Path::name_of(&task)) {
+
+                self.journey.task_status.insert(Path::name_of(&dest), status);
+
+            }
+
         }
+
+        self.save("audit:promote")?;
 
         Ok(())
 
@@ -209,12 +239,13 @@ impl Orchestrator {
 
         Ui::rule(&Self::produce_banner(name));
 
+        let started = Instant::now();
         let roster = self.cfg.roster(name);
         let shipped = self.run_phase(name, &roster, None)?;
 
         if shipped {
 
-            Ui::tick(1, &format!("{name} phase shipped — the result holds"));
+            Ui::done(1, Mark::Cool, &format!("{name} phase shipped — the result holds"), started);
 
         }
         else {

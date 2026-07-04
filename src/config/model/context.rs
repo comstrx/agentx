@@ -13,7 +13,7 @@ impl Context {
 
             if entry.is_file() {
 
-                if !Path::has_extension(&entry, MD_EXT) { continue; }
+                if Path::name_of(&entry).starts_with('.') || !Path::has_extension(&entry, MD_EXT) { continue; }
 
                 for bucket in Self::buckets_of_stem(&Path::stem_of(&entry).to_ascii_lowercase()) {
 
@@ -28,7 +28,9 @@ impl Context {
 
                 for file in Dir::walk(&entry) {
 
-                    if file.is_file() && ( any || Path::has_extension(&file, MD_EXT) ) { self.add(bucket, file); }
+                    if !file.is_file() || Path::hidden_in(&file, &entry) { continue; }
+
+                    if any || Path::has_extension(&file, MD_EXT) { self.add(bucket, file); }
 
                 }
 
@@ -101,6 +103,26 @@ impl Context {
         };
 
         if !target.contains(&path) { target.push(path); }
+
+    }
+
+    pub fn extend ( &mut self, other: &Context ) {
+
+        let buckets: [(&str, &Vec<PathBuf>); 7] = [
+            ( "overview",   &other.overview ),
+            ( "contracts",  &other.contracts ),
+            ( "skills",     &other.skills ),
+            ( "designs",    &other.designs ),
+            ( "references", &other.references ),
+            ( "history",    &other.history ),
+            ( "requires",   &other.requires ),
+        ];
+
+        for ( name, list ) in buckets {
+
+            for path in list { self.add(name, path.clone()); }
+
+        }
 
     }
 

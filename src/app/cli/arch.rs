@@ -9,7 +9,9 @@ const HELP_STYLES: Styles = Styles::styled()
     .header(AnsiColor::BrightCyan.on_default().effects(Effects::BOLD))
     .usage(AnsiColor::BrightCyan.on_default().effects(Effects::BOLD))
     .literal(AnsiColor::BrightGreen.on_default().effects(Effects::BOLD))
-    .placeholder(AnsiColor::BrightBlack.on_default());
+    .placeholder(AnsiColor::BrightBlue.on_default());
+
+pub(super) const HELP_TEMPLATE: &str = "{about-with-newline}\n{usage-heading}\n\n  {usage}\n\n{all-args}{after-help}";
 
 #[derive(Parser)]
 #[command(
@@ -22,6 +24,7 @@ const HELP_STYLES: Styles = Styles::styled()
     disable_help_subcommand = true,
     disable_version_flag = true,
     styles = HELP_STYLES,
+    help_template = HELP_TEMPLATE,
 )]
 pub struct Cli {
     #[command(subcommand)]
@@ -51,7 +54,7 @@ pub struct Cli {
         long = "inspire",
         global = true,
         value_name = "NAME|N",
-        help = "Bind to a training-center archetype by name or its list number (overrides [project].inspire)",
+        help = "Bind to a project node by name or its list number (overrides [project].inspire)",
     )]
     pub inspire: Option<String>,
 
@@ -155,11 +158,19 @@ pub struct Cli {
     pub doc_contracts: Option<String>,
 
     #[arg(
+        short = 'y',
+        long = "yes",
+        global = true,
+        help = "Assume yes on every confirmation prompt (e.g. reset) — for CI and scripts",
+    )]
+    pub yes: bool,
+
+    #[arg(
         short = 'b',
         long = "background",
         visible_alias = "bg",
         global = true,
-        help = "Run start/restart detached in the background; drive it with status/drain/stop",
+        help = "Run new/start/restart detached in the background; drive it with status/drain/stop",
     )]
     pub background: bool,
 
@@ -183,7 +194,7 @@ pub enum Command {
     #[command(about = "Scaffold and configure the project: fill Agentx.toml from flags, create .agentx/ and agentx/")]
     Init,
 
-    #[command(about = "Create a brand-new project of a chosen archetype: scaffold it, then the manager builds the skeleton")]
+    #[command(about = "Create a brand-new project of a chosen project node: scaffold it, then the manager builds the skeleton")]
     New {
         #[arg(value_name = "DIR", help = "Directory to create the new project in")]
         path: PathBuf,
@@ -240,19 +251,31 @@ pub enum Command {
         include: Vec<PathBuf>,
     },
 
-    #[command(about = "Print a clean snapshot of the project: config, paths, classification, journey, sessions")]
+    #[command(about = "Bind or switch the project's inspiration node — the training-center kind it learns from")]
+    Inspire {
+        #[arg(value_name = "NAME|N", help = "Project node name or its list number; omit to pick from the menu")]
+        name: Option<String>,
+    },
+
+    #[command(about = "Set or switch the project's quality-gate command — the check this tool runs after every code turn")]
+    Gate {
+        #[arg(value_name = "COMMAND", help = "The shell command; omit to type it at a prompt")]
+        command: Option<String>,
+    },
+
+    #[command(about = "Print a clean snapshot of the project: config, pids, paths, classification, journey, sessions")]
     Info,
 
-    #[command(about = "Show the live run status: state, journey progress, workers, and pids")]
-    Status {
-        #[arg(short = 'f', long = "tail", help = "Refresh the status in place every second until Ctrl+C (live dashboard)")]
-        tail: bool,
-    },
+    #[command(about = "Show the run status once: state, engines, journey progress, live-log tail, stats, and what's happening now")]
+    Status,
+
+    #[command(about = "Watch the status live — full-screen refresh every second until you exit (Ctrl+C)")]
+    Watch,
 
     #[command(about = "Check that every required agent CLI and tool is installed and runnable before a run")]
     Doctor,
 
-    #[command(about = "Sync the shipped training (overview/contracts/skills/requires/about) into ~/.agentx, keeping learned history")]
+    #[command(about = "Re-extract the shipped knowledge nodes into ~/.agentx, keeping learned history")]
     Sync,
 
     #[command(about = "Wipe and re-seed the global training center (~/.agentx) from the binary, learned history included")]
@@ -291,6 +314,7 @@ pub struct Flags<'a> {
     pub doc_contracts: Option<&'a str>,
     pub ignore: &'a [PathBuf],
     pub include: &'a [PathBuf],
+    pub yes: bool,
     pub background: bool,
     pub no_train: bool,
     pub no_clear: bool,

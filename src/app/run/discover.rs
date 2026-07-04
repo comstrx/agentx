@@ -1,9 +1,10 @@
 use std::path::Path as StdPath;
+use std::time::Instant;
 
 use crate::config::{Spec, Train};
 use crate::config::base::consts::{CONSULT_FILE, MD_EXT};
 use crate::core::fs::{File, Path};
-use crate::app::{Compose, Flow, Orchestrator, Ui};
+use crate::app::{Compose, Flow, Mark, Orchestrator, Ui};
 
 impl Orchestrator {
 
@@ -24,17 +25,31 @@ impl Orchestrator {
 
         if want_inspire {
 
-            Ui::arrow(0, "the manager is classifying the project against the training center");
+            Ui::working(0, Mark::Think, "the manager is classifying the project against the training center");
 
+            let started = Instant::now();
             let prompt = Compose::manager_discover(&self.cfg, &target);
 
             match self.consult(&model, &answer, &prompt, Train::parse_type)? {
-                Some(kind) => {
+                Some(( fresh, slug )) => {
 
-                    let _ = Train::create(&kind);
-                    document.project.inspire = kind.clone();
-                    self.cfg.spec.inspire = kind.clone();
-                    Ui::tick(0, &format!("archetype · {kind}"));
+                    let known = Train::available().iter().any(|name| name.eq_ignore_ascii_case(&slug));
+
+                    document.project.inspire = slug.clone();
+                    self.cfg.spec.inspire = slug.clone();
+
+                    if fresh || !known {
+
+                        let _ = Train::history(&slug);
+                        Ui::done(0, Mark::Ok, &format!("history · {slug}"), started);
+                        Ui::detail("note", "no curated project node fit — a fresh accumulation line starts under history/; add a project node later if this kind recurs");
+
+                    }
+                    else {
+
+                        Ui::done(0, Mark::Ok, &format!("project node · {slug}"), started);
+
+                    }
 
                 }
                 None => Ui::bang(0, "could not classify the project — staying unbound (set [project].inspire or pass --inspire)"),
@@ -44,8 +59,9 @@ impl Orchestrator {
 
         if want_gate {
 
-            Ui::arrow(0, "the manager is composing the quality gate");
+            Ui::working(0, Mark::Think, "the manager is composing the quality gate");
 
+            let started = Instant::now();
             let prompt = Compose::manager_gate(&self.cfg, &target);
 
             match self.consult(&model, &answer, &prompt, |body| Train::parse_line(body, "gate:"))? {
@@ -53,7 +69,7 @@ impl Orchestrator {
 
                     document.gate.command = command.clone();
                     self.cfg.gate.command = command.clone();
-                    Ui::tick(0, &format!("gate · {command}"));
+                    Ui::done(0, Mark::Ok, &format!("gate · {command}"), started);
 
                 }
                 None => Ui::bang(0, "no gate command set — the gate is skipped until you set [gate].command"),
@@ -67,7 +83,7 @@ impl Orchestrator {
 
     }
 
-    fn consult ( &mut self, model: &str, answer: &StdPath, prompt: &str, parse: impl Fn(&str) -> Option<String> ) -> Flow<Option<String>> {
+    fn consult <T> ( &mut self, model: &str, answer: &StdPath, prompt: &str, parse: impl Fn(&str) -> Option<T> ) -> Flow<Option<T>> {
 
         File::remove(answer);
 

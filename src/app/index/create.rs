@@ -1,4 +1,3 @@
-use std::io::{self, IsTerminal};
 use std::path::Path as StdPath;
 use std::process::Command;
 
@@ -80,9 +79,9 @@ impl App {
 
         if let Some(value) = flags.inspire { return Self::select_inspire(value); }
 
-        if io::stdin().is_terminal() && let Some(name) = Self::choose_inspire(false)? { return Ok(name); }
+        if Self::interactive() && let Some(name) = Self::choose_inspire(false)? { return Ok(name); }
 
-        Err(AppError::message("`new` needs an inspiration archetype — pass --inspire <name|N>, or pick one from the menu"))
+        Err(AppError::message("`new` needs an inspiration project node — pass --inspire <name|N>, or pick one from the menu"))
 
     }
 

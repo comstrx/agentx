@@ -1,0 +1,13 @@
+{
+    "name": "Rust CLI infrastructure tool",
+    "description": "A single-binary Rust (edition 2024) command-line tool on Clap - one crate as library + binary, layered monolith, strict exit codes.",
+    "dependency": {
+        "architecture": "monolithic",
+        "pattern": "service",
+        "form": "cli",
+        "lang": "rust",
+        "standard": [
+            "log"
+        ]
+    }
+}

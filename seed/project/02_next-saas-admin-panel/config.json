@@ -1,0 +1,26 @@
+{
+    "name": "Next.js SaaS admin panel",
+    "description": "A Next.js (App Router) + React + TypeScript admin dashboard over the SaaS API - presentation and client state only, permission-driven surfaces.",
+    "dependency": {
+        "architecture": "monolithic",
+        "pattern": "service",
+        "form": "panel",
+        "lang": [
+            "javascript",
+            "typescript"
+        ],
+        "framework": [
+            "react",
+            "next"
+        ],
+        "standard": [
+            "cache",
+            "middleware",
+            "websocket"
+        ],
+        "domain": [
+            "saas",
+            "tenancy"
+        ]
+    }
+}

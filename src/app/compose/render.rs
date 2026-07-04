@@ -23,6 +23,7 @@ impl Compose {
         vec![
             ( "token", CONVERGENCE.to_string() ),
             ( "config", Self::rel(&paths.config_file, root) ),
+            ( "docs", Self::rel(&paths.docs, root) ),
             ( "cache", Self::rel(&paths.cache, root) ),
             ( "requires", Self::rel(&paths.inbox, root) ),
             ( "tasks", Self::rel(&paths.tasks, root) ),
@@ -70,6 +71,21 @@ impl Compose {
             "examples" => P::EXAMPLES_MISSION,
             "fuzzes"   => P::FUZZES_MISSION,
             _          => "",
+        }
+
+    }
+
+    pub(super) fn fence ( cfg: &Config, phase: &str, agent: &str ) -> String {
+
+        let paths = &cfg.paths;
+        let root = &cfg.root;
+        let report = Self::rel(&paths.report_of(phase, agent), root);
+
+        match phase {
+            "requires" => format!("task files under {}/, scope-overflow requirement files under {}/, and your report {report}", Self::rel(&paths.tasks, root), Self::rel(&paths.inbox, root)),
+            "tasks"    => format!("the project source files your task contract names, and your report {report}"),
+            "audits"   => format!("remediation task files under {}/, and your report {report}", Self::rel(&paths.audit, root)),
+            _          => format!("your own {} artifacts in the project's idiomatic locations, and your report {report}", Self::duty_of(phase)),
         }
 
     }

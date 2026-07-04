@@ -13,9 +13,14 @@ impl Compose {
 
         parts.push(P::OWNERSHIP.to_string());
         parts.push(P::WORK_DISCIPLINE.to_string());
+        parts.push(P::WRITE_FENCE.to_string());
+        parts.push(P::EVIDENCE.to_string());
         parts.push(P::REQUIRES_REPORT.to_string());
 
-        Self::render(&parts, &Self::values(cfg, "requires", agent, None))
+        let mut pairs = Self::values(cfg, "requires", agent, None);
+        pairs.push(( "fence", Self::fence(cfg, "requires", agent) ));
+
+        Self::render(&parts, &pairs)
 
     }
 
@@ -31,9 +36,14 @@ impl Compose {
         parts.push(Self::author_policy(cfg));
         parts.push(P::OWNERSHIP.to_string());
         parts.push(P::WORK_DISCIPLINE.to_string());
+        parts.push(P::WRITE_FENCE.to_string());
+        parts.push(P::EVIDENCE.to_string());
         parts.push(P::TASKS_REPORT.to_string());
 
-        Self::render(&parts, &Self::values(cfg, "tasks", agent, Some(task)))
+        let mut pairs = Self::values(cfg, "tasks", agent, Some(task));
+        pairs.push(( "fence", Self::fence(cfg, "tasks", agent) ));
+
+        Self::render(&parts, &pairs)
 
     }
 
@@ -45,13 +55,18 @@ impl Compose {
 
         parts.push(P::OWNERSHIP.to_string());
         parts.push(P::WORK_DISCIPLINE.to_string());
+        parts.push(P::WRITE_FENCE.to_string());
+        parts.push(P::EVIDENCE.to_string());
         parts.push(P::AUDITS_REPORT.to_string());
 
-        Self::render(&parts, &Self::values(cfg, "audits", agent, None))
+        let mut pairs = Self::values(cfg, "audits", agent, None);
+        pairs.push(( "fence", Self::fence(cfg, "audits", agent) ));
+
+        Self::render(&parts, &pairs)
 
     }
 
-    pub(crate) fn producer ( cfg: &Config, phase: &str, agent: &str, gate_failed: bool, has_review: bool ) -> String {
+    pub(crate) fn producer ( cfg: &Config, phase: &str, agent: &str, shipped: &[String], gate_failed: bool, has_review: bool ) -> String {
 
         let mut parts = vec![P::PRODUCE_WORK.to_string()];
 
@@ -61,11 +76,20 @@ impl Compose {
 
         parts.push(P::OWNERSHIP.to_string());
         parts.push(P::WORK_DISCIPLINE.to_string());
+        parts.push(P::WRITE_FENCE.to_string());
+        parts.push(P::EVIDENCE.to_string());
         parts.push(P::PRODUCE_REPORT.to_string());
+
+        let scope = match shipped.is_empty() {
+            true => "(no task has shipped yet)".to_string(),
+            false => shipped.join(", "),
+        };
 
         let mut pairs = Self::values(cfg, phase, agent, None);
         pairs.push(( "phase", phase.to_string() ));
         pairs.push(( "duty", Self::duty_of(phase) ));
+        pairs.push(( "scope", scope ));
+        pairs.push(( "fence", Self::fence(cfg, phase, agent) ));
 
         Self::render(&parts, &pairs)
 

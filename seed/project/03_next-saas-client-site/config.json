@@ -1,0 +1,27 @@
+{
+    "name": "Next.js SaaS client site",
+    "description": "A public Next.js (App Router) + React + TypeScript web app with SSR/ISR over the SaaS API - the browse/search/booking/checkout journey only.",
+    "dependency": {
+        "architecture": "monolithic",
+        "pattern": "service",
+        "form": "web",
+        "lang": [
+            "javascript",
+            "typescript"
+        ],
+        "framework": [
+            "react",
+            "next"
+        ],
+        "standard": [
+            "cache",
+            "search",
+            "payment",
+            "websocket"
+        ],
+        "domain": [
+            "saas",
+            "tenancy"
+        ]
+    }
+}

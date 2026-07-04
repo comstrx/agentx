@@ -1,11 +1,9 @@
-use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use crate::core::error::AppResult;
 use crate::core::fs::{Dir, File, Path};
 use crate::core::text::Text;
-use crate::config::Context;
-use crate::config::base::consts::{ABOUT_FILE, CONTRACTS, DESIGNS, HISTORY, MANIFESTS_DIR, MD_EXT, OVERVIEW, REFERENCES, REPORTS_DIR, REQUIRES, SKILLS, TASKS_DIR, TRAIN_DIR};
+use crate::config::base::consts::{MANIFESTS_DIR, MD_EXT, PROJECT_DIR};
 use super::arch::Train;
 use super::seed::INCLUDE;
 
@@ -13,119 +11,123 @@ impl Train {
 
     pub fn available () -> Vec<String> {
 
-        let mut names: BTreeSet<String> = BTreeSet::new();
+        let mut out: Vec<String> = Vec::new();
 
-        for dir in Dir::subdirs(&Self::trains()) {
+        for dir in Dir::subdirs(&Self::projects()) { Self::enlist(&mut out, &Path::name_of(&dir)); }
 
-            names.insert(Path::name_of(&dir));
+        if let Some(projects) = INCLUDE.get_dir(PROJECT_DIR) {
 
-        }
+            for entry in projects.dirs() {
 
-        if let Some(train) = INCLUDE.get_dir(TRAIN_DIR) {
-
-            for entry in train.dirs() {
-
-                if let Some(name) = entry.path().file_name().and_then(|value| value.to_str()) {
-
-                    names.insert(name.to_string());
-
-                }
+                if let Some(name) = entry.path().file_name().and_then(|value| value.to_str()) { Self::enlist(&mut out, name); }
 
             }
 
         }
 
-        names.into_iter().collect()
+        out
 
     }
 
-    pub fn context ( name: &str ) -> Context {
+    pub fn history_kinds () -> Vec<String> {
 
-        let mut context = Context::default();
-        context.collect(&Self::trains().join(name), true);
+        let mut out: Vec<String> = Vec::new();
 
-        context
+        for dir in Dir::subdirs(&Self::histories()) { Self::enlist(&mut out, &Path::name_of(&dir)); }
 
-    }
-
-    pub fn history ( name: &str ) -> Vec<PathBuf> {
-
-        Dir::markdown(&Self::history_of(name, REPORTS_DIR))
+        out
 
     }
 
-    pub fn past_requires ( name: &str ) -> Vec<PathBuf> {
+    fn enlist ( out: &mut Vec<String>, raw: &str ) {
 
-        Dir::markdown(&Self::history_of(name, REQUIRES))
+        let clean = Text::unprefix(raw);
 
-    }
-
-    pub fn past_tasks ( name: &str ) -> Vec<PathBuf> {
-
-        Dir::markdown(&Self::history_of(name, TASKS_DIR))
-
-    }
-
-    pub fn about ( name: &str ) -> String {
-
-        File::read(&Self::trains().join(name).join(ABOUT_FILE))
-
-    }
-
-    pub(crate) fn manifests ( name: &str ) -> PathBuf {
-
-        Self::trains().join(name).join(MANIFESTS_DIR)
+        if !clean.is_empty() && !out.iter().any(|existing| existing.eq_ignore_ascii_case(clean)) { out.push(clean.to_string()); }
 
     }
 
     pub fn title ( name: &str ) -> String {
 
-        Text::first_line(&Self::about(name)).trim_start_matches('#').trim().to_string()
+        Self::stack(&Self::project(name)).name.trim().to_string()
 
     }
 
-    pub fn record ( name: &str, bucket: &str, stem: &str, content: &str ) -> AppResult<()> {
+    pub(crate) fn manifests ( name: &str ) -> PathBuf {
 
-        let dir = Self::history_of(name, bucket);
+        Self::project(name).join(MANIFESTS_DIR)
+
+    }
+
+    fn history_key ( name: &str ) -> String {
+
+        let bound = Self::stack(&Self::project(name)).history.trim().to_string();
+
+        if bound.is_empty() { name.to_string() } else { bound }
+
+    }
+
+    pub(crate) fn history ( name: &str ) -> AppResult<PathBuf> {
+
+        let key = Self::history_key(name);
+        let clean = Text::unprefix(&key);
+        let base = Self::histories();
+
+        if let Some(dir) = Dir::subdirs(&base).into_iter().rfind(|entry| Text::unprefix(&Path::name_of(entry)).eq_ignore_ascii_case(clean)) {
+
+            return Ok(dir);
+
+        }
+
+        let mut highest = 0u32;
+
+        for entry in Dir::subdirs(&base) {
+
+            if let Some(number) = Dir::leading_number(&Path::name_of(&entry)) { highest = highest.max(number); }
+
+        }
+
+        let dir = base.join(format!("{:02}_{clean}", highest + 1));
         Dir::ensure(&dir)?;
 
+        Ok(dir)
+
+    }
+
+    pub fn learned () -> usize {
+
+        Dir::walk(&Self::histories())
+            .into_iter()
+            .filter(|path| path.is_file() && Path::has_extension(path, MD_EXT))
+            .count()
+
+    }
+
+    pub(crate) fn history_reports ( name: &str ) -> Vec<PathBuf> {
+
+        let mut reports: Vec<PathBuf> = Dir::walk(&Dir::locate(&Self::histories(), &Self::history_key(name)))
+            .into_iter()
+            .filter(|path| path.is_file() && Path::has_extension(path, MD_EXT))
+            .collect();
+
+        reports.sort_by(|a, b| Text::natural_compare(&Path::name_of(a), &Path::name_of(b)));
+
+        reports
+
+    }
+
+    pub fn record ( name: &str, stem: &str, content: &str ) -> AppResult<()> {
+
+        let dir = Self::history(name)?;
         let target = dir.join(format!("{}-{stem}.{MD_EXT}", Dir::next_stamp(&dir)));
 
         File::write_atomic(&target, content)
 
     }
 
-    fn history_of ( name: &str, bucket: &str ) -> PathBuf {
+    pub(super) fn project ( name: &str ) -> PathBuf {
 
-        Self::trains().join(name).join(HISTORY).join(bucket)
-
-    }
-
-    pub(crate) fn create ( name: &str ) -> AppResult<()> {
-
-        let dir = Self::trains().join(name);
-
-        for bucket in [OVERVIEW, CONTRACTS, SKILLS, DESIGNS, REFERENCES, MANIFESTS_DIR] {
-
-            Dir::ensure(&dir.join(bucket))?;
-
-        }
-
-        for bucket in [REQUIRES, TASKS_DIR, REPORTS_DIR] {
-
-            Dir::ensure(&Self::history_of(name, bucket))?;
-
-        }
-
-        let about = dir.join(ABOUT_FILE);
-
-        if !about.exists() {
-
-            File::write(&about, &format!("# {name}\n\nStack and description for this archetype. Describe what it is and exactly what kinds of project it fits.\n"))?;
-
-        }
-
-        Ok(())
+        Dir::locate(&Self::projects(), name)
 
     }
 

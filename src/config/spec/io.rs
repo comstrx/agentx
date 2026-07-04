@@ -4,7 +4,7 @@ use std::path::Path as StdPath;
 use crate::core::error::AppResult;
 use crate::core::fs::File;
 use crate::core::parse::Toml;
-use super::arch::{Agent, Document, Gate, Options, Spec};
+use super::arch::{Agent, Document, Gate, Member, Options, Seats, Spec};
 use crate::config::base::consts::{
     AGENT_TIMEOUT, CLAUDE_EFFORT, CLAUDE_MODEL, CODEX_EFFORT, CODEX_MODEL, DEFAULT_MODEL,
     GATE_TIMEOUT, MANAGER_MODEL, MAX_AUDITS, MAX_FIXES, MAX_ROUNDS,
@@ -14,9 +14,22 @@ impl Spec {
 
     pub(crate) fn default_toml () -> String {
 
-        let one = DEFAULT_MODEL;
         let o = Options::default();
+        let a = Agent::default();
         let b = |value: bool| if value { "true" } else { "false" };
+
+        let mut engines = Document::default();
+        engines.fill_defaults();
+
+        let member = |seat: &Member| {
+
+            let ( model, effort ) = engines.resolve_member(seat);
+
+            format!("{{ agent = \"{}\", model = \"{model}\", effort = \"{effort}\" }}", seat.agent)
+
+        };
+
+        let roster = |seats: &Seats| seats.members.iter().map(&member).collect::<Vec<_>>().join(", ");
 
         format!(
 "[project]
@@ -41,20 +54,6 @@ clear         = {clear}
 timeout = {GATE_TIMEOUT}
 command = \"\"
 
-[agent]
-max_audits = {MAX_AUDITS}
-max_rounds = {MAX_ROUNDS}
-max_fixes  = {MAX_FIXES}
-timeout    = {AGENT_TIMEOUT}
-manager    = \"{MANAGER_MODEL}\"
-requires   = [ \"{one}\", \"codex\", \"{one}\" ]
-tasks      = [ \"{one}\" ]
-audits     = [ \"{one}\" ]
-tests      = [ \"{one}\" ]
-fuzzes     = [ \"{one}\" ]
-benches    = [ \"{one}\" ]
-examples   = [ \"{one}\" ]
-
 [claude]
 model  = \"{CLAUDE_MODEL}\"
 effort = \"{CLAUDE_EFFORT}\"
@@ -62,6 +61,20 @@ effort = \"{CLAUDE_EFFORT}\"
 [codex]
 model  = \"{CODEX_MODEL}\"
 effort = \"{CODEX_EFFORT}\"
+
+[agent]
+max_audits = {MAX_AUDITS}
+max_rounds = {MAX_ROUNDS}
+max_fixes  = {MAX_FIXES}
+timeout    = {AGENT_TIMEOUT}
+manager    = {manager}
+requires   = [ {r_requires} ]
+tasks      = [ {r_tasks} ]
+audits     = [ {r_audits} ]
+tests      = [ {r_tests} ]
+fuzzes     = [ {r_fuzzes} ]
+benches    = [ {r_benches} ]
+examples   = [ {r_examples} ]
 ",
             lint = b(o.lint),
             format = b(o.format),
@@ -75,6 +88,14 @@ effort = \"{CODEX_EFFORT}\"
             doc_contracts = b(o.doc_contracts),
             train = b(o.train),
             clear = b(o.clear),
+            manager = member(&a.manager),
+            r_requires = roster(&a.requires),
+            r_tasks = roster(&a.tasks),
+            r_audits = roster(&a.audits),
+            r_tests = roster(&a.tests),
+            r_fuzzes = roster(&a.fuzzes),
+            r_benches = roster(&a.benches),
+            r_examples = roster(&a.examples),
         )
 
     }
@@ -144,15 +165,15 @@ impl Agent {
 
         self.max_audits = self.max_audits.max(1);
         self.max_rounds = self.max_rounds.max(1);
-        self.manager = self.manager.trim().to_string();
+        self.manager.agent = self.manager.agent.trim().to_string();
 
-        if self.manager.is_empty() { self.manager = MANAGER_MODEL.to_string(); }
+        if self.manager.agent.is_empty() { self.manager = Member::backend(MANAGER_MODEL); }
 
-        for models in [&mut self.requires, &mut self.tasks, &mut self.audits, &mut self.tests, &mut self.fuzzes, &mut self.benches, &mut self.examples] {
+        for seats in [&mut self.requires, &mut self.tasks, &mut self.audits, &mut self.tests, &mut self.fuzzes, &mut self.benches, &mut self.examples] {
 
-            models.retain(|model| !model.trim().is_empty());
+            seats.members.retain(|member| !member.agent.trim().is_empty());
 
-            if models.is_empty() { models.push(DEFAULT_MODEL.to_string()); }
+            if seats.members.is_empty() { seats.members.push(Member::backend(DEFAULT_MODEL)); }
 
         }
 

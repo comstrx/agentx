@@ -17,15 +17,17 @@ architecture, contracts, skills, and taste once — then a disciplined team of C
 coding agents (`claude`, optionally `codex`) executes your requirements *in your
 own style*, reviewed and gate-kept at every step. One Rust crate: library *and* binary.
 
-> It does **not** build a whole app from one magic prompt. It builds **one
-> requirement, end-to-end** — architected, executed, audited, verified, and
-> manager-reviewed — so you can ship a system of dozens of small, deliberate
-> requirements and inspect every single one. AgentX scales your judgment; it
-> doesn't replace it.
+- It does **not** build a whole app from one magic prompt. It builds **one
+- requirement, end-to-end** — architected, executed, audited, verified, and
+- manager-reviewed — so you can ship a system of dozens of small, deliberate
+- requirements and inspect every single one. AgentX scales your judgment; it
+- doesn't replace it.
 
 ```
-your requirement ─▶ intake ─▶ requires ─▶ tasks ─▶ audit ─▶ verify ─▶ train ─▶ you review ─▶ next requirement
-   (your intent)    manager   architects  executors auditors  tests…   manager     (human)      (the loop)
+your requirement ─▶ intake ─▶ requires ─▶ tasks ─▶ audits ─▶ verify ─▶ train ─▶ you review
+  (your intent)     manager   architects  executors auditors  tests…   manager    (human)
+        ▲                                                                             │
+        └──────────────────◀ the loop · your next sharp requirement ──────────────────┘
 ```
 
 ## Why it's different
@@ -91,7 +93,7 @@ cargo install --path .     # → agentx on your PATH
 ```sh
 agentx init                                  # scaffold Agentx.toml + .agentx/
 echo "build X that does Y" > Requirements.md # one file or many; root or agentx/requires/
-agentx start                                 # detects archetype + gate, then the team builds it
+agentx start                                 # matches a project kind + gate, then the team builds it
 agentx start --bg                            # or detached — drive it with status / drain / stop
 ```
 
@@ -99,27 +101,31 @@ agentx start --bg                            # or detached — drive it with sta
 
 | command | what it does |
 |---|---|
-| `init` | scaffold `Agentx.toml` + `.agentx/` + `agentx/` from flags (no detection) |
-| `new <dir>` | create a fresh project of a chosen archetype — the manager builds the skeleton (mandatory `--inspire`) |
-| `start` | run or **resume** a full cycle; detect archetype + gate; on a clean cycle auto-records + clears `.agentx/` |
+| `init` | scaffold `Agentx.toml` + `.agentx/` + `agentx/` from flags; on a terminal it offers the inspire menu (with `auto`) then a skippable gate prompt |
+| `new <dir>` | create a fresh project of a chosen project node — the manager builds the skeleton (mandatory `--inspire`) |
+| `start` | run or **resume** a full cycle; match a project kind + gate; on a clean cycle auto-records + clears `.agentx/` |
 | `restart` | `clear` + `start` — a fresh cycle from scratch |
 | `stop` | kill the running cycle now — resumable |
 | `drain` | stop after the current turn — resumable |
 | `train` | record the finished run into the training center (manager writes a report per requirement) — auto-runs after a clean cycle |
 | `clear` | delete `.agentx/` runtime files, keep the layout |
-| `ignore` / `include` | skip or force-in paths during classification (persisted) |
+| `ignore <PATH>…` | skip paths during classification (persisted) |
+| `include <PATH>…` | force paths into classification, overriding ignore (persisted) |
 | `refresh` | reset the ignore/include lists and re-classify |
-| `info` | read-only snapshot: config, paths, classification, journey |
-| `status` | live run state, progress, workers, pids, and a tail of the live log — `-f/--tail` for a live dashboard |
+| `inspire [NAME\|N]` | bind or switch the project's inspiration node — by name/number, or from the menu |
+| `gate [COMMAND]` | set or switch the quality-gate command — as an argument, or typed at a prompt |
+| `info` | read-only snapshot: config, pids, paths, classification, journey, sessions |
+| `status` | one snapshot: state, per-seat engines, journey progress, live-log tail, a numbers-only stats block, and a closing "Now · what's happening" panel |
+| `watch` | the same status as a live dashboard — full-screen refresh every second until you exit (Ctrl+C) |
 | `doctor` | check every required agent CLI + tool is installed and runnable |
-| `sync` | refresh the shipped training, **keep** learned history |
-| `reset` | wipe and re-seed the training center from the binary |
+| `sync` | re-extract the shipped knowledge nodes, **keep** learned history |
+| `reset` | wipe and re-seed the training center from the binary — asks first when learned reports exist (`-y` skips) |
 
 ## Flags
 
 | flag | applies to | effect |
 |---|---|---|
-| `-i, --inspire <NAME\|N>` | init · new · start · restart | bind a training archetype (name or menu number; **required** for `new`) |
+| `-i, --inspire <NAME\|N>` | init · new · start · restart | bind a project node (name or menu number; **required** for `new`) |
 | `-g, --gate <COMMAND>` | init · new · start · restart | set the quality-gate command |
 | `-d, --description <TEXT>` | init · new · start · restart | a short project description to guide the manager (classify + create) |
 | `--lint <BOOL>` | init · new · start · restart | gate includes a lint / static-analysis pillar |
@@ -132,13 +138,15 @@ agentx start --bg                            # or detached — drive it with sta
 | `--comments <BOOL>` | init · new · start · restart | executors add inline comments on non-obvious logic; off = none |
 | `--doc-blocks <BOOL>` | init · new · start · restart | document every public item in the native doc format |
 | `--doc-contracts <BOOL>` | init · new · start · restart | document non-obvious units that don't return explicit types |
-| `-b, --background` (`--bg`) | start · restart | run detached; drive with `status`/`drain`/`stop` |
+| `-y, --yes` | any | assume yes on every confirmation prompt (e.g. `reset`) — for CI and scripts |
+| `-b, --background` (`--bg`) | new · start · restart | run detached; drive with `status`/`drain`/`stop` |
 | `--no-train` | init · new · start · restart | don't auto-record the finished run into the training center (sets `[option].train = false`) |
 | `--no-clear` | init · new · start · restart | don't auto-clear `.agentx/` when the run finishes (sets `[option].clear = false`) |
-| `--ignore` / `--include <PATH>…` | start · restart | curate classification (merged + persisted) |
+| `--ignore <PATH>…` | start · restart · refresh | skip paths during classification (merged + persisted) |
+| `--include <PATH>…` | start · restart · refresh | force paths into classification, overriding ignore (merged + persisted) |
 | `-C, --dir <DIR>` | any | operate as if started in `DIR` |
 
-Per-backend `model`/`effort` live only in the `[claude]`/`[codex]` tables of `Agentx.toml`.
+`model`/`effort` live in `Agentx.toml` — inline on any seat, or per backend in the `[claude]`/`[codex]` tables (see Config).
 
 Shell completions and a man page are generated on demand:
 
@@ -151,12 +159,11 @@ agentx man > /usr/local/share/man/man1/agentx.1
 
 The philosophy above, made concrete — every phase is a relay of warm, contract-bound agents the manager rules on:
 
-- **Prime** — the whole team studies the project once and confirms the bar (training only).
-- **Discover** — if the archetype or gate isn't set, the now-primed manager classifies the project (binding a training archetype) and composes the gate command — always a `check` baseline, plus the `lint`/`format`/`tests` pillars you switched on.
+- **Prime & discover** — the manager trains first, then — if the project kind or gate isn't set — matches the project to a curated node (or coins a fresh history line) and composes the gate (`check` baseline plus the `lint`/`format`/`tests` pillars you switched on). If that binds a kind, its composed knowledge is folded in and only THEN is the rest of the team primed — with that knowledge in their study lists, so no agent ever trains blind. A final active-recall pass confirms the bar.
 - **Intake** — the manager turns your requirements into an ordered, de-duplicated backlog.
 - **Requires** — architects write ordered task contracts: path, interface, invariants, acceptance criteria.
 - **Tasks** — executors build them one at a time; the gate runs after every turn (≤ `max_fixes` repairs; a gate still red after the last repair stops the run with a clear, resumable error).
-- **Audit** — when `audits` is on, a council of auditors examines the WHOLE built system for integration, layering, abstraction, providers/adaptors, dangerous dependencies, performance, and secrets, and raises each real defect as an explained remediation task; the executors build those, then it audits again — up to `max_audits` rounds, or until the system is clean.
+- **Audits** — when `audits` is on, a council of auditors examines the WHOLE built system for integration, layering, abstraction, providers/adaptors, dangerous dependencies, performance, and secrets, and raises each real defect as an explained remediation task; the executors build those, then it audits again — up to `max_audits` rounds, or until the system is clean.
 - **Verify** — then up to four ordered phases, each run only when its `[option]` switch is on and skipped otherwise: **tests** → **benches** → **examples** → **fuzzes**. Each has its own roster, works on the executed tasks for real (the language's idiomatic tooling, run and measured), and is manager-reviewed every round (≤ `max_rounds`). Because these phases write real code into the project, the gate runs after every turn here too: a producer repairs its own broken artifact, but never edits project source — a real defect a test surfaces is reported, and a gate left red blocks the phase for review rather than halting the run.
 - **Train & clear** — a clean cycle auto-records the run into the training center (manager writes a decision report per requirement) and clears `.agentx/`; both are also manual commands (`agentx train`, `agentx clear`) for when you stop early.
 - **Warm** — each agent runs as one long-lived session kept warm for the whole journey (claude over streaming I/O, codex over its MCP server), so turns have no cold start and never lose context.
@@ -165,21 +172,63 @@ The philosophy above, made concrete — every phase is a relay of warm, contract
 
 ## Self-training
 
-Your engineering judgment, stored once and reused on every project of the same kind.
-A global, per-archetype knowledge base at `~/.agentx/train/<id>/`: an `about.md`
-identity card, the study buckets `overview · contracts · skills · designs ·
-references` (a `references/` of prior projects to learn taste from), a `manifests/`
-tree merged into a new project's root, and a growing
-`history/{requires, tasks, reports}` archive.
+Your engineering judgment, written once and **composed** per project — three zones
+under `~/.agentx/`:
 
-Each bucket is matched flexibly — file **or** folder, singular **or** plural,
-case-insensitive — from the training center first, then your project's `agentx/`
-dir or root (your files win on conflict).
+- **`base/`** — shared knowledge in seven numbered axes; the number **is** the
+  composition order:
+  `01_architecture · 02_pattern · 03_form · 04_lang · 05_framework · 06_standard · 07_domain`.
+  Each axis holds nodes (`04_lang/rust`, `05_framework/laravel`, `07_domain/saas`, …),
+  and every node carries the same optional buckets — `contracts · overview · skills ·
+  references · designs` — so a Rust idiom, a web-API rule, or a tenancy skill lives in
+  **one** node, reused by every project that needs it.
+- **`project/`** — your curated project nodes (`NN_<name>/`): the five buckets plus
+  `manifests/` and a `config.json`.
+- **`history/`** — one flat, numbered folder per project kind, holding the stamped
+  decision reports the tool accumulates run after run.
 
-- **Bound** — the primed manager matches your project's stack to the best archetype and writes it to `Agentx.toml`.
-- **Injected** — its knowledge prepends every agent's briefing; on conflict, **your files win**.
-- **Learned** — `train` archives the requirements it built, the tasks they became, and one manager decision
-  report per requirement into `history/` — so the next project of that kind starts smarter.
+A project node's `config.json` is its identity card — a human `name`, an optional
+`history` naming the folder under `history/` that holds this kind's accumulated
+reports (empty → the node's own name, matched with or without the `NN_` prefix),
+a one-line stack `description`, and a `dependency` map whose keys name **axes**
+and whose values name **nodes** (a name **or** a list):
+
+```json
+{
+  "name": "Laravel multi-tenant SaaS API",
+  "history": "laravel-saas-tenancy-api",
+  "description": "A monolithic multi-tenant SaaS HTTP/JSON API on Laravel Octane + FrankenPHP…",
+  "dependency": {
+    "lang": "php", "framework": "laravel",
+    "standard": ["cache", "payment", "webhook"], "domain": ["saas", "tenancy"]
+  }
+}
+```
+
+Resolution is **transitive**: any node — base nodes included — may carry its own
+`config.json`, and its dependencies are followed recursively, so `laravel` can itself
+inherit `lang/php` and every kind that composes laravel gets php for free. One visited
+set guards cycles and diamonds — a shared node lands exactly **once**, at its most
+general position; a dependency that resolves to nothing is flagged with its full
+parent chain, never dropped silently.
+
+The tool composes every node's `.md` in **axis-ladder order** — `01_architecture →
+… → 07_domain`, then your project node, then your **live repo last**. The later layer
+always wins, so a project preference overrides an inherited default. Names and buckets
+match flexibly: the `NN_` prefix is ordering metadata only (stripped on lookup),
+case-insensitive, file **or** folder, singular **or** plural; `designs`/`references`
+accept any file type (Figma, a whole prior project, a link).
+
+- **Bound** — the primed manager matches your project to a curated node (or, if none
+  fits, coins a clean kind-name and starts a fresh `history/` line — it never edits
+  `project/`); the choice lands in `Agentx.toml`.
+- **Injected** — the composed chain plus the kind's accumulated history prepend every
+  agent's briefing, general → specific; on conflict **your live files win**.
+- **Learned** — `train` writes one manager decision report per requirement into
+  `history/<kind>/` — so the next project of that kind starts smarter.
+
+`agentx info` prints the composed node chain and the accumulated report count, and
+flags any dependency that points at a missing node.
 
 ## Config
 
@@ -191,9 +240,18 @@ dir or root (your files win on conflict).
 | `[option]` | `lint` · `format` · `audits` · `tests` · `fuzzes` · `benches` · `examples` · `comments` · `doc_blocks` · `doc_contracts` (default off) · `train` · `clear` (default on) — each a flexible bool. `lint`/`format`/`tests` add gate pillars; `audits`/`tests`/`benches`/`examples`/`fuzzes` switch their phase on; `comments`/`doc_blocks`/`doc_contracts` shape how executors document; `train`/`clear` toggle the post-run auto-record and auto-clear (disable via `--no-train`/`--no-clear`) |
 | `[gate]` | `command` · `timeout` (1000s) |
 | `[agent]` | `max_audits` (3) · `max_rounds` (3) · `max_fixes` (3) · `timeout` (10000s) · `manager` (exactly one) · per-phase rosters `requires` · `tasks` · `audits` · `tests` · `benches` · `examples` · `fuzzes` |
-| `[claude]` / `[codex]` | `model` · `effort` (empty = CLI default) |
+| `[claude]` / `[codex]` | `model` · `effort` (scaffolded: claude `claude-opus-4-8`/`max` · codex `gpt-5.5`/`high`; empty = CLI default) |
 
-Each phase has its own roster. A roster value can be a single name (`"claude"`), a list (`["claude", "claude", "codex"]` → `claude_1 claude_2 codex_1`, each a persistent, independently-briefed agent), or empty (`""`/`[]` → the default agent when that phase runs). `manager` must be exactly one agent.
+Each phase has its own roster. A roster entry is either a bare backend name (`"claude"`) or an inline table `{ agent = "claude", model = "fable-5", effort = "max" }`; a roster field is a single entry or a list of them. `manager` must resolve to exactly one entry. Entries expand to `claude_1 claude_2 codex_1 …` (backend + ordinal), each a persistent, independently-briefed agent. `init` scaffolds every seat explicit — `{ agent, model, effort }`, one architect — so the file teaches its own syntax; edit freely.
+
+`model`/`effort` resolve **per seat**, three layers: the entry's own field → the `[<backend>]` section → the built-in default. So the manager can run `fable-5`/`max` while one architect runs `opus-4.8`/`high` and the next `fable-5`/`xhigh`:
+
+```toml
+[agent]
+manager  = { agent = "claude", model = "fable-5", effort = "max" }
+requires = [ { agent = "claude", model = "opus-4.8" }, { agent = "claude", model = "fable-5", effort = "xhigh" } ]
+tasks    = [ "claude" ]                                # bare → inherits [claude] wholly
+```
 
 ## As a library
 
@@ -208,7 +266,7 @@ fn main() -> agentx::AppResult<()> {
     App::start(Path::new("."), &Flags::default())
 }
 // App::{init, create, start, restart, stop, drain, train, clear, ignore, include,
-//       refresh, info, status, doctor, sync, reset} — the full CLI surface.
+//       refresh, inspire, gate, info, status, watch, doctor, sync, reset} — the full CLI surface.
 ```
 
 ## Platforms

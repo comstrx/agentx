@@ -1,0 +1,24 @@
+{
+    "name": "React Native SaaS mobile app",
+    "description": "A cross-platform iOS + Android client in React Native + TypeScript over the SaaS API - native UX, navigation, notifications, offline sessions.",
+    "dependency": {
+        "form": "mobile",
+        "lang": [
+            "javascript",
+            "typescript"
+        ],
+        "framework": [
+            "react",
+            "react-native"
+        ],
+        "standard": [
+            "cache",
+            "websocket",
+            "payment"
+        ],
+        "domain": [
+            "saas",
+            "tenancy"
+        ]
+    }
+}

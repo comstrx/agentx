@@ -1,0 +1,29 @@
+{
+    "name": "Laravel multi-tenant SaaS API",
+    "description": "A monolithic multi-tenant SaaS HTTP/JSON API on Laravel Octane + FrankenPHP, with PostgreSQL and Redis, behind the repository and service patterns.",
+    "dependency": {
+        "architecture": "monolithic",
+        "pattern": "repo",
+        "form": "server",
+        "lang": "php",
+        "framework": "laravel",
+        "standard": [
+            "cache",
+            "database",
+            "event",
+            "limiter",
+            "log",
+            "mail",
+            "middleware",
+            "payment",
+            "search",
+            "thirdparty",
+            "webhook",
+            "websocket"
+        ],
+        "domain": [
+            "saas",
+            "tenancy"
+        ]
+    }
+}

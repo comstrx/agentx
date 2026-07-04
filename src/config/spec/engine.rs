@@ -1,5 +1,6 @@
 use crate::config::base::consts::{CLAUDE_EFFORT, CLAUDE_MODEL, CODEX_EFFORT, CODEX_MODEL};
-use super::arch::{Document, Engine};
+use crate::config::worker::Worker;
+use super::arch::{Document, Engine, Member};
 
 impl Engine {
 
@@ -26,6 +27,24 @@ impl Engine {
 
 }
 
+impl Member {
+
+    pub fn resolved ( &self, claude: &Engine, codex: &Engine ) -> ( String, String ) {
+
+        let ( base_model, base_effort ) = match Worker::resolve(&self.agent) {
+            Some("codex") => codex.resolved(CODEX_MODEL, CODEX_EFFORT),
+            _             => claude.resolved(CLAUDE_MODEL, CLAUDE_EFFORT),
+        };
+
+        let model = if self.model.trim().is_empty() { base_model } else { self.model.trim().to_string() };
+        let effort = if self.effort.trim().is_empty() { base_effort } else { self.effort.trim().to_string() };
+
+        ( model, effort )
+
+    }
+
+}
+
 impl Document {
 
     pub fn fill_defaults ( &mut self ) -> bool {
@@ -37,12 +56,9 @@ impl Document {
 
     }
 
-    pub fn engine_of ( &self, backend: &str ) -> ( String, String ) {
+    pub fn resolve_member ( &self, member: &Member ) -> ( String, String ) {
 
-        match backend {
-            "codex" => self.codex.resolved(CODEX_MODEL, CODEX_EFFORT),
-            _       => self.claude.resolved(CLAUDE_MODEL, CLAUDE_EFFORT),
-        }
+        member.resolved(&self.claude, &self.codex)
 
     }
 

@@ -5,4 +5,4 @@ mod roster;
 mod io;
 mod engine;
 
-pub use arch::{Agent, Document, Engine, Gate, Options, Spec};
+pub use arch::{Agent, Document, Engine, Gate, Member, Options, Seats, Spec};

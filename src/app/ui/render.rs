@@ -1,4 +1,4 @@
-use std::io::{IsTerminal, Write};
+use std::io::Write;
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
@@ -6,17 +6,19 @@ use std::time::{Duration, Instant};
 use owo_colors::{OwoColorize, Style};
 use parking_lot::Mutex;
 
-use crate::config::base::consts::FRAMES;
-use crate::app::{Loader, Ui};
+use crate::config::base::consts::{BUSY_WIDTH, FRAMES, FRAMES_PLAIN, GLYPH_BEAT, GLYPH_COOL, GLYPH_FAIL, GLYPH_INFO, GLYPH_OK, GLYPH_PARTY, GLYPH_RAGE, GLYPH_STEP, GLYPH_STUDY, GLYPH_THINK, GLYPH_WARN, TICK_MS};
+use crate::core::term::Term;
+use crate::app::{Loader, Mark, Ui};
 
-static COLOR: OnceLock<bool> = OnceLock::new();
 static LOADER: OnceLock<Loader> = OnceLock::new();
+static LAST_BLANK: AtomicBool = AtomicBool::new(true);
+static PENDING: AtomicBool = AtomicBool::new(false);
 
 impl Ui {
 
     pub fn loading ( label: &str ) {
 
-        if !Self::tinted() { return; }
+        if !Term::ansi() { return; }
 
         let loader = LOADER.get_or_init(Loader::new);
 
@@ -30,7 +32,7 @@ impl Ui {
 
             loop {
 
-                thread::sleep(Duration::from_millis(90));
+                thread::sleep(Duration::from_millis(TICK_MS));
 
                 let Some(loader) = LOADER.get() else { break; };
 
@@ -65,7 +67,7 @@ impl Ui {
 
     pub fn cursor ( visible: bool ) {
 
-        if !Self::tinted() { return; }
+        if !Term::ansi() { return; }
 
         let mut out = std::io::stdout().lock();
         let _ = write!(out, "{}", if visible { "\x1b[?25h" } else { "\x1b[?25l" });
@@ -75,7 +77,7 @@ impl Ui {
 
     pub fn home () {
 
-        if !Self::tinted() { return; }
+        if !Term::ansi() { return; }
 
         let mut out = std::io::stdout().lock();
         let _ = write!(out, "\x1b[H\x1b[0J");
@@ -83,7 +85,56 @@ impl Ui {
 
     }
 
+    pub fn screen ( alt: bool ) {
+
+        if !Term::ansi() { return; }
+
+        let mut out = std::io::stdout().lock();
+        let _ = write!(out, "{}", if alt { "\x1b[?1049h\x1b[H" } else { "\x1b[?1049l" });
+        let _ = out.flush();
+
+    }
+
     pub(super) fn line ( text: &str ) {
+
+        if text.trim().is_empty() {
+
+            PENDING.store(true, Ordering::Relaxed);
+
+            return;
+
+        }
+
+        if PENDING.swap(false, Ordering::Relaxed) && !LAST_BLANK.load(Ordering::Relaxed) { Self::emit_raw(""); }
+
+        Self::emit_raw(text);
+
+    }
+
+    pub(crate) fn pad ( count: usize ) {
+
+        PENDING.store(false, Ordering::Relaxed);
+
+        for _ in 0..count { Self::emit_raw(""); }
+
+    }
+
+    pub(super) fn settle () {
+
+        if PENDING.swap(false, Ordering::Relaxed) && !LAST_BLANK.load(Ordering::Relaxed) { Self::emit_raw(""); }
+
+    }
+
+    pub(super) fn printed () {
+
+        PENDING.store(false, Ordering::Relaxed);
+        LAST_BLANK.store(false, Ordering::Relaxed);
+
+    }
+
+    fn emit_raw ( text: &str ) {
+
+        LAST_BLANK.store(text.trim().is_empty(), Ordering::Relaxed);
 
         match LOADER.get() {
             Some(loader) if loader.active.load(Ordering::Relaxed) => loader.render(Some(text)),
@@ -95,6 +146,77 @@ impl Ui {
     pub(super) fn emit ( depth: usize, glyph: &str, style: Style, message: &str ) {
 
         Self::line(&format!("{}{}  {message}", "  ".repeat(depth + 1), Self::paint(glyph, style)));
+
+    }
+
+    pub(super) fn glyph ( mark: Mark ) -> ( &'static str, Style ) {
+
+        match mark {
+            Mark::Ok    => ( Self::pick(GLYPH_OK),    Style::new().bright_green().bold() ),
+            Mark::Fail  => ( Self::pick(GLYPH_FAIL),  Style::new().bright_red().bold() ),
+            Mark::Warn  => ( Self::pick(GLYPH_WARN),  Style::new().bright_yellow().bold() ),
+            Mark::Info  => ( Self::pick(GLYPH_INFO),  Style::new().bright_blue().bold() ),
+            Mark::Step  => ( Self::pick(GLYPH_STEP),  Style::new().bright_cyan().bold() ),
+            Mark::Beat  => ( Self::pick(GLYPH_BEAT),  Style::new().bright_magenta().bold() ),
+            Mark::Cool  => ( Self::pick(GLYPH_COOL),  Style::new().bright_green().bold() ),
+            Mark::Rage  => ( Self::pick(GLYPH_RAGE),  Style::new().bright_red().bold() ),
+            Mark::Think => ( Self::pick(GLYPH_THINK), Style::new().bright_cyan().bold() ),
+            Mark::Party => ( Self::pick(GLYPH_PARTY), Style::new().bright_magenta().bold() ),
+            Mark::Study => ( Self::pick(GLYPH_STUDY), Style::new().bright_cyan().bold() ),
+        }
+
+    }
+
+    pub(super) fn pick ( pair: ( &'static str, &'static str ) ) -> &'static str {
+
+        if Term::icons() { pair.0 } else { pair.1 }
+
+    }
+
+    pub(crate) fn mark ( depth: usize, mark: Mark, message: &str ) {
+
+        let ( glyph, style ) = Self::glyph(mark);
+
+        Self::emit(depth, glyph, style, message);
+
+    }
+
+    pub(crate) fn done ( depth: usize, mark: Mark, message: &str, from: Instant ) {
+
+        let elapsed = Self::clock(from.elapsed().as_secs());
+
+        Self::mark(depth, mark, &format!("{message}  {}", Self::paint(&format!("({elapsed})"), Self::muted())));
+
+    }
+
+    pub(crate) fn working ( depth: usize, mark: Mark, message: &str ) {
+
+        Self::mark(depth, mark, message);
+        Self::busy(message);
+
+    }
+
+    pub(super) fn accent () -> Style {
+
+        Style::new().bright_cyan().bold()
+
+    }
+
+    pub(super) fn brand () -> Style {
+
+        Style::new().bright_magenta().bold()
+
+    }
+
+    pub(super) fn muted () -> Style {
+
+        Style::new().bright_blue()
+
+    }
+
+    pub(super) fn good () -> Style {
+
+        Style::new().bright_green()
 
     }
 
@@ -111,7 +233,11 @@ impl Ui {
 
     fn clock ( secs: u64 ) -> String {
 
-        if secs >= 60 { format!("{}m{:02}s", secs / 60, secs % 60) } else { format!("{secs}s") }
+        match secs {
+            s if s >= 3600 => format!("{}h{:02}m{:02}s", s / 3600, ( s % 3600 ) / 60, s % 60),
+            s if s >= 60   => format!("{}m{:02}s", s / 60, s % 60),
+            s              => format!("{s}s"),
+        }
 
     }
 
@@ -123,7 +249,7 @@ impl Ui {
 
     fn tinted () -> bool {
 
-        *COLOR.get_or_init(|| std::io::stdout().is_terminal())
+        Term::colors()
 
     }
 
@@ -171,11 +297,23 @@ impl Loader {
 
     fn bar ( &self ) -> String {
 
-        let glyph = FRAMES[self.frame.load(Ordering::Relaxed) % FRAMES.len()];
-        let label = self.label.lock().clone();
+        let frames: &[&str] = if Term::icons() { &FRAMES } else { &FRAMES_PLAIN };
+
+        let glyph = frames[self.frame.load(Ordering::Relaxed) % frames.len()];
+        let label = Self::clip(&self.label.lock());
         let elapsed = Ui::clock(self.start.lock().elapsed().as_secs());
 
-        format!("  {}  {label}  {}", Ui::paint(glyph, Style::new().bright_cyan().bold()), Ui::paint(&format!("· {elapsed}"), Style::new().bright_black()))
+        format!("  {}  {label}  {}", Ui::paint(glyph, Ui::accent()), Ui::paint(&format!("· {elapsed}"), Ui::muted()))
+
+    }
+
+    fn clip ( label: &str ) -> String {
+
+        if label.chars().count() <= BUSY_WIDTH { return label.to_string(); }
+
+        let head: String = label.chars().take(BUSY_WIDTH.saturating_sub(1)).collect();
+
+        format!("{}…", head.trim_end())
 
     }
 

@@ -11,8 +11,16 @@ impl Train {
 
         let blocks: Vec<String> = names.iter().map(|name| {
 
-            let about = Self::about(name);
-            let body = if about.trim().is_empty() { name.clone() } else { about.trim().to_string() };
+            let stack = Self::stack(&Self::project(name));
+            let title = stack.name.trim();
+            let description = stack.description.trim();
+
+            let body = match ( title.is_empty(), description.is_empty() ) {
+                ( false, false ) => format!("{title} — {description}"),
+                ( false, true )  => title.to_string(),
+                ( true, false )  => description.to_string(),
+                ( true, true )   => name.clone(),
+            };
 
             format!("### {name}\n{body}")
 
@@ -22,18 +30,18 @@ impl Train {
 
     }
 
-    pub(crate) fn parse_type ( body: &str ) -> Option<String> {
+    pub(crate) fn parse_type ( body: &str ) -> Option<( bool, String )> {
 
         let value = Self::parse_line(body, "type:")?;
 
-        let name = match value.get(..4) {
-            Some(head) if head.eq_ignore_ascii_case("new ") => value[4..].trim(),
-            _ => value.as_str(),
+        let ( fresh, name ) = match value.get(..4) {
+            Some(head) if head.eq_ignore_ascii_case("new ") => ( true, value[4..].trim() ),
+            _ => ( false, value.as_str() ),
         };
 
         let slug = Text::slug(name);
 
-        if slug.is_empty() { None } else { Some(slug) }
+        if slug.is_empty() { None } else { Some(( fresh, slug )) }
 
     }
 

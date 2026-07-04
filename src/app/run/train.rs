@@ -1,8 +1,10 @@
+use std::time::Instant;
+
 use crate::config::Train;
-use crate::config::base::consts::{REPORTS_DIR, REQUIRES, TASKS_DIR, TOOL};
+use crate::config::base::consts::TOOL;
 use crate::core::error::AppResult;
 use crate::core::fs::{Dir, File, Path};
-use crate::app::{Compose, Flow, Halt, Orchestrator, Ui};
+use crate::app::{Compose, Flow, Halt, Mark, Orchestrator, Ui};
 
 impl Orchestrator {
 
@@ -51,8 +53,9 @@ impl Orchestrator {
 
         }
 
-        Ui::arrow(0, "the manager is writing a decision report per requirement");
+        Ui::working(0, Mark::Think, "the manager is writing a decision report per requirement");
 
+        let started = Instant::now();
         let prompt = Compose::manager_finalize(&self.cfg);
         self.deliver("manager", &model, "", 0, &prompt)?;
 
@@ -66,38 +69,42 @@ impl Orchestrator {
 
         }
 
-        let count = self.archive(&kind);
+        let ( count, failed ) = self.archive(&kind);
 
-        Ui::tick(0, &format!("recorded {count} requirement(s) to the training center · {kind}"));
+        match ( count, failed ) {
+            ( 0, 0 ) => Ui::bang(0, "no manager report matched a requirement — nothing recorded to the training center"),
+            ( _, 0 ) => Ui::done(0, Mark::Cool, &format!("recorded {count} requirement(s) to the training center · {kind}"), started),
+            _        => Ui::bang(0, &format!("recorded {count} requirement(s), {failed} FAILED — see the errors above")),
+        }
 
         Ok(())
 
     }
 
-    fn archive ( &self, kind: &str ) -> usize {
+    fn archive ( &self, kind: &str ) -> ( usize, usize ) {
 
         let mut count = 0;
+        let mut failed = 0;
 
         for req in Dir::markdown(&self.cfg.paths.inbox) {
 
-            let stem = Self::clean_name(&req);
-            let _ = Train::record(kind, REQUIRES, &stem, &File::read(&req));
-
             let report = self.cfg.paths.manager.join(Path::name_of(&req));
 
-            if report.exists() { let _ = Train::record(kind, REPORTS_DIR, &stem, &File::read(&report)); }
+            if !report.exists() { continue; }
 
-            count += 1;
+            match Train::record(kind, &Self::clean_name(&req), &File::read(&report)) {
+                Ok(()) => count += 1,
+                Err(error) => {
+
+                    failed += 1;
+                    Ui::cross(0, &format!("could not record {} — {error}", Path::name_of(&req)));
+
+                }
+            }
 
         }
 
-        for task in Dir::markdown(&self.cfg.paths.tasks) {
-
-            let _ = Train::record(kind, TASKS_DIR, &Self::clean_name(&task), &File::read(&task));
-
-        }
-
-        count
+        ( count, failed )
 
     }
 

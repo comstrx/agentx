@@ -71,7 +71,7 @@ impl Orchestrator {
         Ui::field("project", &Path::display(&self.cfg.root));
         Ui::field("inspire", &self.cfg.spec.inspire);
 
-        Ui::rule("priming · training the manager for this archetype");
+        Ui::rule("priming · training the manager for this project node");
         Ui::arrow(0, "training the manager");
 
         let brief = Compose::manager_brief(&self.cfg, &self.journey);

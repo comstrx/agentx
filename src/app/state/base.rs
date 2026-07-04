@@ -6,6 +6,26 @@ use crate::core::fs::File;
 use crate::core::parse::Json;
 use super::arch::{Journey, Phase, Status};
 
+impl Phase {
+
+    pub fn slug ( &self ) -> &'static str {
+
+        match self {
+            Phase::Idle      => "idle",
+            Phase::Requires  => "requires",
+            Phase::Tasks     => "tasks",
+            Phase::Audit     => "audits",
+            Phase::Tests     => "tests",
+            Phase::Benches   => "benches",
+            Phase::Examples  => "examples",
+            Phase::Fuzzes    => "fuzzes",
+            Phase::Completed => "completed",
+        }
+
+    }
+
+}
+
 impl Journey {
 
     pub fn fresh () -> Self {

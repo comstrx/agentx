@@ -1,6 +1,5 @@
-use owo_colors::Style;
-
-use crate::app::Ui;
+use crate::config::base::consts::{GLYPH_RULE, RULE_WIDTH};
+use crate::app::{Mark, Ui};
 
 impl Ui {
 
@@ -10,76 +9,81 @@ impl Ui {
 
     }
 
+    pub fn point ( depth: usize, message: &str ) {
+
+        Self::mark(depth, Mark::Step, message);
+
+    }
+
     pub fn rule ( label: &str ) {
 
-        let head = format!("── {label} ");
-        let fill = 68usize.saturating_sub(head.chars().count()).max(2);
+        let dash = Self::pick(GLYPH_RULE);
+        let head = format!("{} {label} ", dash.repeat(2));
+        let fill = RULE_WIDTH.saturating_sub(head.chars().count()).max(2);
 
-        Self::line("");
-        Self::line(&Self::paint(&format!("{head}{}", "─".repeat(fill)), Style::new().bright_cyan().bold()));
-        Self::line("");
+        Self::blank();
+        Self::line(&Self::paint(&format!("{head}{}", dash.repeat(fill)), Self::accent()));
+        Self::blank();
 
     }
 
     pub fn step ( message: &str ) {
 
-        Self::emit(0, "▸", Style::new().bright_cyan().bold(), message);
-        Self::busy(message);
+        Self::working(0, Mark::Step, message);
 
     }
 
     pub fn ok ( message: &str ) {
 
-        Self::emit(0, "✓", Style::new().bright_green().bold(), message);
+        Self::mark(0, Mark::Ok, message);
 
     }
 
     pub fn warn ( message: &str ) {
 
-        Self::emit(0, "▲", Style::new().yellow().bold(), message);
+        Self::mark(0, Mark::Warn, message);
 
     }
 
     pub fn info ( message: &str ) {
 
-        Self::emit(0, "·", Style::new().bright_black().bold(), message);
+        Self::mark(0, Mark::Info, message);
 
     }
 
     pub fn arrow ( depth: usize, message: &str ) {
 
-        Self::emit(depth, "▸", Style::new().bright_cyan().bold(), message);
-        Self::busy(message);
+        Self::working(depth, Mark::Step, message);
 
     }
 
     pub fn tick ( depth: usize, message: &str ) {
 
-        Self::emit(depth, "✓", Style::new().bright_green().bold(), message);
+        Self::mark(depth, Mark::Ok, message);
 
     }
 
     pub fn cross ( depth: usize, message: &str ) {
 
-        Self::emit(depth, "✗", Style::new().bright_red().bold(), message);
+        Self::mark(depth, Mark::Fail, message);
 
     }
 
     pub fn bang ( depth: usize, message: &str ) {
 
-        Self::emit(depth, "▲", Style::new().yellow().bold(), message);
+        Self::mark(depth, Mark::Warn, message);
 
     }
 
     pub fn dot ( depth: usize, message: &str ) {
 
-        Self::emit(depth, "·", Style::new().bright_black().bold(), &Self::paint(message, Style::new().bright_black()));
+        Self::mark(depth, Mark::Info, message);
 
     }
 
     pub fn beat ( depth: usize, message: &str ) {
 
-        Self::emit(depth, "↻", Style::new().bright_magenta().bold(), message);
+        Self::mark(depth, Mark::Beat, message);
 
     }
 

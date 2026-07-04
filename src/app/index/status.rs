@@ -2,52 +2,63 @@ use std::io::{self, IsTerminal};
 use std::path::Path as StdPath;
 
 use crate::config::{Paths, Spec};
-use crate::config::base::consts::{RUN_LOG, TOOL};
+use crate::config::base::consts::{LOG_TAIL, PHASES, POLL_MS, POLL_TICKS, RUN_LOG, TOOL};
 use crate::core::error::AppResult;
 use crate::core::fs::{Dir, File, Path};
 use crate::core::proc::Proc;
-use crate::app::{App, Journey, Orchestrator, Phase, Project, Status, Ui};
+use crate::core::term::Term;
+use crate::app::{App, Journey, Orchestrator, Project, Status, Ui};
 
 impl App {
 
-    pub fn status ( dir: &StdPath, tail: bool ) -> AppResult<()> {
+    pub fn status ( dir: &StdPath ) -> AppResult<()> {
 
-        if !tail || !io::stdout().is_terminal() {
+        Self::status_once(dir)?;
+
+        Ok(())
+
+    }
+
+    pub fn watch ( dir: &StdPath ) -> AppResult<()> {
+
+        if !Term::ansi() || !io::stdout().is_terminal() {
 
             Self::status_once(dir)?;
+            Ui::info("no TTY — printed once (watch needs an interactive terminal)");
 
             return Ok(());
 
         }
 
         Self::guard_signals();
+        Ui::screen(true);
         Ui::cursor(false);
 
-        let result = Self::watch(dir);
+        let result = Self::watch_loop(dir);
 
         Ui::cursor(true);
+        Ui::screen(false);
+        Ui::blank();
 
         result
 
     }
 
-    fn watch ( dir: &StdPath ) -> AppResult<()> {
+    fn watch_loop ( dir: &StdPath ) -> AppResult<()> {
 
         loop {
 
             Ui::home();
 
-            let status = Self::status_once(dir)?;
+            Self::status_once(dir)?;
 
-            Ui::dot(0, "live · refreshing every second · Ctrl+C to stop");
+            Ui::dot(0, "watching · refreshes every second · Ctrl+C to exit");
 
-            if Proc::aborted() || matches!(status, Status::Completed | Status::Failed) { return Ok(()); }
-
-            for _ in 0..10 {
+            for _ in 0..POLL_TICKS {
 
                 if Proc::aborted() { return Ok(()); }
 
-                std::thread::sleep(std::time::Duration::from_millis(100));
+                std::thread::sleep(std::time::Duration::from_millis(POLL_MS));
 
             }
 
@@ -61,12 +72,9 @@ impl App {
         let paths = Paths::new(&root);
 
         let journey = Journey::load(&paths.state);
-        let sessions = Self::sessions_of(&paths.sessions);
 
         let tool = Proc::read_pid(&paths.pid);
-        let active = Proc::read_pid(&paths.active);
         let running = tool.is_some_and(Proc::is_alive);
-        let worker_live = active.is_some_and(Proc::is_alive);
 
         Ui::blank();
         Ui::title(&format!("{TOOL} · status"));
@@ -86,12 +94,21 @@ impl App {
         let document = Spec::document(&paths.config_file)?;
 
         Ui::blank();
-        Ui::head("Engines  ·  model · effort in use");
+        Ui::head("Engines  ·  per seat · model · effort");
 
-        for name in document.agent.backends() {
+        let ( model, effort ) = document.resolve_member(&document.agent.manager);
+        Ui::field("manager", &format!("model {model}  ·  effort {effort}"));
 
-            let ( model, effort ) = document.engine_of(name);
-            Ui::field(name, &format!("model {model}  ·  effort {effort}"));
+        for phase in PHASES {
+
+            if !document.option.active(phase) { continue; }
+
+            for ( seat, member ) in document.agent.seats(phase) {
+
+                let ( model, effort ) = document.resolve_member(&member);
+                Ui::field(&format!("{phase} {seat}"), &format!("model {model}  ·  effort {effort}"));
+
+            }
 
         }
 
@@ -100,6 +117,7 @@ impl App {
             Ui::blank();
             Ui::info(&format!("no journey yet — run `{TOOL} start`"));
             Self::recent(&log);
+            Self::stats(&paths, &document.project, &journey);
             Ui::blank();
 
             return Ok(journey.status);
@@ -150,47 +168,8 @@ impl App {
 
         if total > 0 { Ui::field("tasks", &format!("{shipped}/{total} shipped   {}", Ui::bar(shipped, total))); }
 
-        Ui::blank();
-        Ui::head("Workers");
-
-        if sessions.is_empty() {
-
-            Ui::info("none yet");
-
-        }
-        else {
-
-            for ( key, id ) in &sessions {
-
-                let short = id.get(..8).map(|head| format!("{head}…")).unwrap_or_else(|| id.clone());
-                Ui::field(key, &short);
-
-            }
-
-        }
-
-        Ui::blank();
-        Ui::head("Sessions");
-
-        if sessions.is_empty() {
-
-            Ui::info("none yet");
-
-        }
-        else {
-
-            for ( key, id ) in &sessions {
-
-                Ui::field(key, id);
-
-            }
-
-        }
-
-        Ui::blank();
-        Ui::head("Pids");
-        Ui::field(TOOL, &Self::pid_line(tool, running));
-        Ui::field("active", &Self::pid_line(active, worker_live));
+        Self::recent(&log);
+        Self::stats(&paths, &document.project, &journey);
 
         Ui::blank();
         Ui::head("Now  ·  what's happening");
@@ -198,9 +177,8 @@ impl App {
         let ( who, doing, stage ) = Self::activity(&journey, running);
 
         Ui::state(&who, running, &doing);
+        Ui::blank();
         Ui::field("phase", &stage);
-
-        Self::recent(&log);
 
         Ui::blank();
 
@@ -208,9 +186,45 @@ impl App {
 
     }
 
+    fn stats ( paths: &Paths, spec: &Spec, journey: &Journey ) {
+
+        let context = Project::discover(paths, spec);
+
+        let knowledge = context.overview.len() + context.contracts.len() + context.skills.len()
+            + context.designs.len() + context.references.len() + context.history.len();
+
+        let sources = context.requires.len();
+        let backlog = Dir::markdown(&paths.inbox).len();
+        let total = Dir::markdown(&paths.tasks).len();
+        let shipped = journey.task_status.values().filter(|status| status.as_str() == "shipped").count();
+        let blocked = journey.task_status.values().filter(|status| status.as_str() == "blocked").count();
+        let pending = total.saturating_sub(shipped + blocked);
+        let recorded = Dir::markdown(&paths.manager).len();
+
+        Ui::head("Stats");
+        Ui::field("knowledge", &knowledge.to_string());
+        Ui::field("sources", &sources.to_string());
+        Ui::field("backlog", &backlog.to_string());
+        Ui::field("tasks", &total.to_string());
+        Ui::field("shipped", &Self::ratio(shipped, total));
+        Ui::field("blocked", &Self::ratio(blocked, total));
+        Ui::field("pending", &Self::ratio(pending, total));
+        Ui::field("recorded", &Self::ratio(recorded, backlog));
+
+    }
+
+    fn ratio ( part: usize, whole: usize ) -> String {
+
+        match whole {
+            0 => part.to_string(),
+            _ => format!("{part}  ({}%)", part * 100 / whole),
+        }
+
+    }
+
     fn recent ( log: &StdPath ) {
 
-        let lines = File::tail(log, 12);
+        let lines = File::tail(log, LOG_TAIL);
 
         if lines.is_empty() { return; }
 
@@ -221,26 +235,11 @@ impl App {
 
     }
 
-    fn phase_slug ( phase: Phase ) -> &'static str {
-
-        match phase {
-            Phase::Requires => "requires",
-            Phase::Tasks    => "tasks",
-            Phase::Audit    => "audits",
-            Phase::Tests    => "tests",
-            Phase::Benches  => "benches",
-            Phase::Examples => "examples",
-            Phase::Fuzzes   => "fuzzes",
-            _               => "idle",
-        }
-
-    }
-
     fn activity ( journey: &Journey, running: bool ) -> ( String, String, String ) {
 
         if !running {
 
-            return ( "—".to_string(), "not running".to_string(), Self::phase_slug(journey.phase).to_string() );
+            return ( "—".to_string(), "not running".to_string(), journey.phase.slug().to_string() );
 
         }
 
@@ -265,7 +264,13 @@ impl App {
 
                 }
 
-                let phase = Self::phase_slug(journey.phase);
+                let phase = journey.phase.slug();
+
+                if journey.manager_review == "pending" {
+
+                    return ( "manager".to_string(), "reviewing the round — judging the reports against the real code".to_string(), format!("{phase} · round {}", journey.current_round) );
+
+                }
                 let who = if journey.current_agent.is_empty() { "manager".to_string() } else { journey.current_agent.clone() };
                 let verb = Orchestrator::verb_of(phase);
 
@@ -283,7 +288,7 @@ impl App {
 
     }
 
-    fn pid_line ( pid: Option<i32>, alive: bool ) -> String {
+    pub(super) fn pid_line ( pid: Option<i32>, alive: bool ) -> String {
 
         match pid {
             Some(value) if alive => format!("{value}   (alive)"),

@@ -1,5 +1,5 @@
 use std::io::{self, Write};
-use owo_colors::{OwoColorize, Style};
+use owo_colors::Style;
 
 use crate::core::error::AppResult;
 use super::arch::{Key, Term};
@@ -13,7 +13,7 @@ impl Term {
         let last = options.len() - 1;
         let mut index = default.min(last);
 
-        if !Self::is_tty() { return Ok(Some(index)); }
+        if !Self::is_tty() || !Self::ansi() { return Ok(Some(index)); }
 
         let _guard = Self::enter_raw()?;
         let mut input = io::stdin().lock();
@@ -40,18 +40,20 @@ impl Term {
 
     fn render ( prompt: &str, options: &[String], index: usize ) {
 
-        println!("{}", prompt.style(Style::new().bright_black()));
+        let cursor = if Self::icons() { "❯" } else { ">" };
+
+        println!("{}", Self::tint(prompt, Style::new().bright_blue()));
 
         for ( position, option ) in options.iter().enumerate() {
 
             if position == index {
 
-                println!("  {} {}", "❯".style(Style::new().bright_cyan().bold()), option.style(Style::new().bright_cyan().bold()));
+                println!("  {} {}", Self::tint(cursor, Style::new().bright_cyan().bold()), Self::tint(option, Style::new().bright_cyan().bold()));
 
             }
             else {
 
-                println!("    {}", option.style(Style::new().bright_black()));
+                println!("    {option}");
 
             }
 

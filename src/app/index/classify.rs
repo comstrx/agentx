@@ -94,6 +94,8 @@ impl App {
 
         Self::classification(&config, &root);
 
+        Self::warn_unmatched(&config.paths.docs, &root);
+
         Ui::blank();
 
         Ok(())

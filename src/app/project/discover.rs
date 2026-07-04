@@ -1,41 +1,74 @@
 use std::path::{Path as StdPath, PathBuf};
 
 use crate::config::{Context, Paths, Spec, Train};
-use crate::config::base::consts::{MD_EXT, OVERVIEW};
+use crate::config::base::consts::{HISTORY, MD_EXT, OVERVIEW};
 use crate::core::fs::{Dir, Path};
 use crate::core::text::Text;
 use crate::app::Project;
 
 impl Project {
 
-    pub(super) fn discover ( paths: &Paths, spec: &Spec ) -> Context {
+    pub(crate) fn discover ( paths: &Paths, spec: &Spec ) -> Context {
 
-        let mut context = Self::scan(paths, &spec.ignore, &spec.include);
-        let kind = spec.inspire.as_str();
+        let project = Self::scan(paths, &spec.ignore, &spec.include);
+        let kind = spec.inspire.trim();
 
-        if !kind.is_empty() {
+        if kind.is_empty() { return project; }
 
-            let train = Train::context(kind);
+        let mut context = Context::default();
 
-            context.overview = Self::merge(train.overview, context.overview);
-            context.contracts = Self::merge(train.contracts, context.contracts);
-            context.skills = Self::merge(train.skills, context.skills);
-            context.designs = Self::merge(train.designs, context.designs);
-            context.references = Self::merge(train.references, context.references);
-            context.history = Self::merge(Train::history(kind), context.history);
+        for node in Train::resolve(kind) {
+
+            let mut node_context = Context::default();
+            node_context.collect(&node, true);
+            node_context.sort();
+
+            context.extend(&node_context);
 
         }
+
+        for report in Train::history_reports(kind) { context.add(HISTORY, report); }
+
+        context.extend(&project);
+        context.requires = project.requires;
 
         context
 
     }
 
-    fn merge ( mut train: Vec<PathBuf>, project: Vec<PathBuf> ) -> Vec<PathBuf> {
+    pub(crate) fn unmatched ( docs: &StdPath ) -> Vec<PathBuf> {
 
-        train.sort_by(|a, b| Text::natural_compare(&Path::name_of(a), &Path::name_of(b)));
-        train.extend(project);
+        let mut out = Vec::new();
 
-        train
+        for entry in Dir::entries(docs) {
+
+            let name = Path::name_of(&entry);
+
+            if name.starts_with('.') { continue; }
+
+            let matched = if entry.is_dir() {
+
+                Context::bucket_of_dir(&name.to_ascii_lowercase()).is_some()
+
+            }
+            else if Path::has_extension(&entry, MD_EXT) {
+
+                !Context::buckets_of_stem(&Path::stem_of(&entry).to_ascii_lowercase()).is_empty()
+
+            }
+            else {
+
+                true
+
+            };
+
+            if !matched { out.push(entry); }
+
+        }
+
+        out.sort_by(|a, b| Text::natural_compare(&Path::name_of(a), &Path::name_of(b)));
+
+        out
 
     }
 

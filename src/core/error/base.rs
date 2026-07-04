@@ -1,7 +1,11 @@
+use std::io::IsTerminal;
 use std::process::ExitCode;
-use owo_colors::OwoColorize;
+use std::sync::OnceLock;
+use owo_colors::{OwoColorize, Style};
 
 use super::arch::AppError;
+
+static TINT: OnceLock<bool> = OnceLock::new();
 
 impl AppError {
 
@@ -103,11 +107,11 @@ impl AppError {
 
     pub fn print_block ( label: &str, value: &str ) {
 
-        eprintln!("{}", format!("{label}:").bold().bright_black());
+        eprintln!("{}", Self::dye(&format!("{label}:"), Style::new().bright_blue().bold()));
 
         for line in value.lines().filter(|line| !line.trim().is_empty()) {
 
-            eprintln!("  {}", line.bright_red());
+            eprintln!("  {}", Self::dye(line, Style::new().bright_red()));
 
         }
 
@@ -115,7 +119,7 @@ impl AppError {
 
     pub fn report ( &self ) -> ExitCode {
 
-        eprintln!("{}: {}", "error".bold().bright_red(), self.to_string().bold());
+        eprintln!("{}: {}", Self::dye("error", Style::new().bright_red().bold()), Self::dye(&self.to_string(), Style::new().bold()));
 
         if let Self::Command { stderr, .. } = self && !stderr.trim().is_empty() {
 
@@ -127,12 +131,31 @@ impl AppError {
 
         while let Some(cause) = source {
 
-            eprintln!("{} {}", "cause:".bold().bright_black(), cause.to_string().bright_black());
+            eprintln!("{} {}", Self::dye("cause:", Style::new().bright_blue().bold()), Self::dye(&cause.to_string(), Style::new().bright_blue()));
             source = cause.source();
 
         }
 
         self.exit_code()
+
+    }
+
+    fn dye ( text: &str, style: Style ) -> String {
+
+        match *TINT.get_or_init(Self::tinted) {
+            true => text.style(style).to_string(),
+            false => text.to_string(),
+        }
+
+    }
+
+    fn tinted () -> bool {
+
+        if std::env::var_os("NO_COLOR").is_some() { return false; }
+
+        if std::env::var("TERM").is_ok_and(|term| term.trim().eq_ignore_ascii_case("dumb")) { return false; }
+
+        std::io::stderr().is_terminal()
 
     }
 

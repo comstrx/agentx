@@ -57,6 +57,21 @@ impl Dir {
 
     }
 
+    pub fn locate ( dir: &StdPath, name: &str ) -> PathBuf {
+
+        let want = Text::unprefix(name);
+        let mut found: Option<PathBuf> = None;
+
+        for entry in Self::entries(dir) {
+
+            if Text::unprefix(&Path::name_of(&entry)).eq_ignore_ascii_case(want) { found = Some(entry); }
+
+        }
+
+        found.unwrap_or_else(|| dir.join(name))
+
+    }
+
     pub fn names ( dir: &StdPath ) -> Vec<String> {
 
         Self::entries(dir).iter().map(|path| Path::name_of(path)).collect()

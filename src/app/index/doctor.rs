@@ -1,14 +1,14 @@
-use std::collections::BTreeSet;
 use std::path::Path as StdPath;
+use std::time::Instant;
 
 use crate::config::Config;
-use crate::config::base::consts::{PROBE_PROMPT, PROBE_TIMEOUT, PROBE_TURN_TIMEOUT, TOOL};
+use crate::config::base::consts::{PHASES, PROBE_TIMEOUT, TURN_TIMEOUT, TOOL};
 use crate::core::error::{AppError, AppResult};
 use crate::core::env::Env;
 use crate::core::proc::Proc;
 use crate::core::text::Text;
 use crate::config::worker::{Fault, Worker};
-use crate::app::{App, Project, Ui};
+use crate::app::{App, Mark, Project, Ui};
 
 impl App {
 
@@ -22,13 +22,13 @@ impl App {
         Ui::step("checking the dependencies a run needs");
         Ui::blank();
 
-        let ok = Self::run_checks(&config, true);
+        let ok = Self::run_checks(&config);
 
         Ui::blank();
 
         if ok {
 
-            Ui::ok("all dependencies are installed and runnable — you are clear to start");
+            Ui::mark(0, Mark::Cool, "all dependencies are installed and runnable — you are clear to start");
             Ui::blank();
 
             return Ok(());
@@ -45,7 +45,7 @@ impl App {
 
         Ui::rule("doctor · checking the dependencies and agents this run needs");
 
-        let ok = Self::run_checks(config, true);
+        let ok = Self::run_checks(config);
 
         if ok { return Ok(()); }
 
@@ -53,55 +53,68 @@ impl App {
 
     }
 
-    fn run_checks ( config: &Config, verbose: bool ) -> bool {
+    fn run_checks ( config: &Config ) -> bool {
 
         let mut all_ok = true;
 
-        for model in Self::models(config) {
+        let triples = Self::triples(config);
 
-            if Worker::resolve(&model).is_none() {
+        let mut backends: Vec<String> = Vec::new();
 
-                all_ok = false;
-                Ui::cross(0, &format!("{model:<8}  unsupported worker — add it under src/config/worker/, or fix the [agent] models"));
+        for ( agent, _, _ ) in &triples {
 
+            if !backends.iter().any(|name| name == agent) { backends.push(agent.clone()); }
+
+        }
+
+        let mut broken: Vec<String> = Vec::new();
+
+        for agent in &backends {
+
+            match Worker::resolve(agent) {
+                None => {
+
+                    all_ok = false;
+                    broken.push(agent.clone());
+                    Ui::cross(0, &format!("{agent:<8}  unsupported worker — add it under src/config/worker/, or fix the [agent] members"));
+
+                }
+                Some(program) => {
+
+                    let ( found, detail ) = Self::probe(program);
+
+                    if found { Ui::tick(0, &format!("{program:<8}  {detail}")); }
+                    else {
+
+                        all_ok = false;
+                        broken.push(agent.clone());
+                        Ui::cross(0, &format!("{program:<8}  {detail}"));
+
+                    }
+
+                }
             }
 
         }
 
-        for program in Self::required_programs(config) {
+        if !config.gate.command.trim().is_empty() {
 
-            let ( found, detail ) = Self::probe(&program);
+            let ( found, detail ) = Self::probe("sh");
 
-            if !found {
+            if !found { all_ok = false; Ui::cross(0, &format!("{:<8}  {detail}", "sh")); }
+            else { Ui::tick(0, &format!("{:<8}  {detail}", "sh")); }
 
-                all_ok = false;
-                Ui::cross(0, &format!("{program:<8}  {detail}"));
+        }
 
-                continue;
+        for ( agent, model, effort ) in &triples {
 
-            }
+            if broken.iter().any(|name| name == agent) { continue; }
 
-            if program == "sh" {
+            let started = Instant::now();
+            let ( works, note ) = Self::probe_agent(agent, model, effort);
 
-                if verbose { Ui::tick(0, &format!("{program:<8}  {detail}")); }
-
-                continue;
-
-            }
-
-            let ( works, note ) = Self::probe_agent(config, &program);
-
-            if !works {
-
-                all_ok = false;
-                Ui::cross(0, &format!("{program:<8}  {note}"));
-
-            }
-            else if verbose {
-
-                Ui::tick(0, &format!("{program:<8}  {note}"));
-
-            }
+            if !works { all_ok = false; Ui::cross(0, &format!("{agent:<8}  {note}")); }
+            else { Ui::done(0, Mark::Ok, &format!("{agent:<8}  {note}"), started); }
 
         }
 
@@ -109,15 +122,42 @@ impl App {
 
     }
 
-    fn probe_agent ( config: &Config, backend: &str ) -> ( bool, String ) {
+    fn triples ( config: &Config ) -> Vec<( String, String, String )> {
 
-        let ( model, effort ) = config.engine(backend);
-        let label = Self::engine_label(&model, &effort);
+        let mut members = vec![config.agent.manager.clone()];
 
-        let mut worker = Worker::new(backend);
-        worker.cwd(&Env::temp_dir()).timeout(PROBE_TURN_TIMEOUT).engine(&model, &effort);
+        for phase in PHASES {
 
-        match worker.turn(PROBE_PROMPT) {
+            if config.option.active(phase) { members.extend(config.agent.members(phase).iter().cloned()); }
+
+        }
+
+        let mut out: Vec<( String, String, String )> = Vec::new();
+
+        for member in members {
+
+            if member.agent.trim().is_empty() { continue; }
+
+            let ( model, effort ) = config.resolve_member(&member);
+            let triple = ( member.agent.trim().to_string(), model, effort );
+
+            if !out.contains(&triple) { out.push(triple); }
+
+        }
+
+        out
+
+    }
+
+    fn probe_agent ( agent: &str, model: &str, effort: &str ) -> ( bool, String ) {
+
+        let prompt = "Reply with the single word: pong — nothing else. Do not use any tool and do not read or write any file.";
+        let label = Self::engine_label(model, effort);
+
+        let mut worker = Worker::new(agent);
+        worker.cwd(&Env::temp_dir()).timeout(TURN_TIMEOUT).engine(model, effort);
+
+        match worker.turn(prompt) {
             Ok(_) => ( true, format!("{label} — responding") ),
             Err(error) => match Worker::fault(&error) {
                 Fault::Transient => ( true, format!("{label} — responding") ),
@@ -133,32 +173,6 @@ impl App {
         let effort = if effort.trim().is_empty() { "default" } else { effort.trim() };
 
         format!("model {model} · effort {effort}")
-
-    }
-
-    fn models ( config: &Config ) -> BTreeSet<String> {
-
-        let agent = &config.agent;
-
-        let mut all = vec![agent.manager.clone()];
-
-        for roster in [&agent.requires, &agent.tasks, &agent.tests, &agent.benches, &agent.examples, &agent.fuzzes] {
-
-            all.extend(roster.iter().cloned());
-
-        }
-
-        all.iter().map(|model| model.trim().to_string()).filter(|model| !model.is_empty()).collect()
-
-    }
-
-    fn required_programs ( config: &Config ) -> BTreeSet<String> {
-
-        let mut programs: BTreeSet<String> = Self::models(config).iter().filter_map(|model| Worker::resolve(model)).map(str::to_string).collect();
-
-        if !config.gate.command.trim().is_empty() { programs.insert("sh".to_string()); }
-
-        programs
 
     }
 

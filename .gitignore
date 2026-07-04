@@ -5,5 +5,6 @@ target/
 .codex
 .env
 .secret
-sessions.md
-prompts.md
+/sessions.md
+/prompts.md
+/plan.md

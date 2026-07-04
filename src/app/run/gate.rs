@@ -1,10 +1,11 @@
 use std::path::Path as StdPath;
+use std::time::Instant;
 
 use crate::config::base::consts::{CONFIG_FILE, TOOL};
 use crate::core::error::AppError;
 use crate::core::fs::{File, Path};
 use crate::core::proc::Proc;
-use crate::app::{Flow, Gate, Halt, Orchestrator, Ui};
+use crate::app::{Flow, Gate, Halt, Mark, Orchestrator, Ui};
 
 impl Orchestrator {
 
@@ -81,13 +82,14 @@ impl Orchestrator {
 
         Ui::arrow(depth, &format!("running gate · {}", self.cfg.gate.command));
 
+        let started = Instant::now();
         let result = self.run_gate()?;
         let log = Path::relative_one(&self.cfg.paths.gate_log, &self.cfg.root);
 
         match result {
-            Gate::Green   => Ui::tick(depth, "gate green"),
-            Gate::Red     => Ui::cross(depth, &format!("gate red — see {log}")),
-            Gate::Timeout => Ui::bang(depth, &format!("gate timed out after {}s — environment slowness, not a code defect", self.cfg.gate.timeout)),
+            Gate::Green   => Ui::done(depth, Mark::Cool, "gate green", started),
+            Gate::Red     => Ui::done(depth, Mark::Rage, &format!("gate red — see {log}"), started),
+            Gate::Timeout => Ui::done(depth, Mark::Warn, &format!("gate timed out after {}s — environment slowness, not a code defect", self.cfg.gate.timeout), started),
         }
 
         Ok(result)

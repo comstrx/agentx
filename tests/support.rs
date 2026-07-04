@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 
+use agentx::core::fs::Dir;
 use agentx::{Flags, List, Num, Str, Text};
 
 #[test]
@@ -101,5 +102,52 @@ fn flags_default_is_empty () {
     assert!(flags.ignore.is_empty());
     assert!(flags.include.is_empty());
     assert!(!flags.background);
+
+}
+
+#[test]
+fn unprefix_strips_one_leading_number_segment () {
+
+    assert_eq!(Text::unprefix("01_foo"), "foo");
+    assert_eq!(Text::unprefix("1_foo"), "foo");
+    assert_eq!(Text::unprefix("12_next-saas-admin-panel"), "next-saas-admin-panel");
+    assert_eq!(Text::unprefix("foo"), "foo");
+    assert_eq!(Text::unprefix("_foo"), "_foo");
+    assert_eq!(Text::unprefix("foo_1"), "foo_1");
+    assert_eq!(Text::unprefix(""), "");
+
+}
+
+#[test]
+fn stripped_inspire_matching_is_prefix_and_case_stable () {
+
+    let a = Text::slug(Text::unprefix("01_laravel-saas-tenancy-api"));
+    let b = Text::slug(Text::unprefix("Laravel-SaaS-Tenancy-API"));
+    let c = Text::slug(Text::unprefix("laravel-saas-tenancy-api"));
+
+    assert_eq!(a, c);
+    assert_eq!(a, b);
+
+}
+
+#[test]
+fn locate_matches_stripped_name_case_insensitively_last_wins () {
+
+    let base = std::env::temp_dir().join(format!("agentx-locate-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+
+    for child in ["01_rust", "02_php", "07_rust"] {
+
+        std::fs::create_dir_all(base.join(child)).unwrap();
+
+    }
+
+    assert_eq!(Dir::locate(&base, "php").file_name().unwrap(), "02_php");
+    assert_eq!(Dir::locate(&base, "PHP").file_name().unwrap(), "02_php");
+    assert_eq!(Dir::locate(&base, "05_php").file_name().unwrap(), "02_php");
+    assert_eq!(Dir::locate(&base, "rust").file_name().unwrap(), "07_rust");
+    assert_eq!(Dir::locate(&base, "go"), base.join("go"));
+
+    let _ = std::fs::remove_dir_all(&base);
 
 }

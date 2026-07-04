@@ -85,15 +85,7 @@ impl Orchestrator {
 
     pub(super) fn active ( &self, phase: &str ) -> bool {
 
-        match phase {
-            "requires" | "tasks" => true,
-            "audits"   => self.cfg.option.audits,
-            "tests"    => self.cfg.option.tests,
-            "benches"  => self.cfg.option.benches,
-            "examples" => self.cfg.option.examples,
-            "fuzzes"   => self.cfg.option.fuzzes,
-            _          => false,
-        }
+        self.cfg.option.active(phase)
 
     }
 

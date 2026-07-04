@@ -49,6 +49,19 @@ pub struct Gate {
     pub command: String,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Member {
+    pub agent: String,
+    pub model: String,
+    pub effort: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Seats {
+    pub members: Vec<Member>,
+    pub seq: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Agent {
@@ -57,21 +70,14 @@ pub struct Agent {
     pub max_fixes: u32,
     pub timeout: u64,
     #[serde(deserialize_with = "Spec::de_manager")]
-    pub manager: String,
-    #[serde(deserialize_with = "Spec::de_roster")]
-    pub requires: Vec<String>,
-    #[serde(deserialize_with = "Spec::de_roster")]
-    pub tasks: Vec<String>,
-    #[serde(deserialize_with = "Spec::de_roster")]
-    pub audits: Vec<String>,
-    #[serde(deserialize_with = "Spec::de_roster")]
-    pub tests: Vec<String>,
-    #[serde(deserialize_with = "Spec::de_roster")]
-    pub fuzzes: Vec<String>,
-    #[serde(deserialize_with = "Spec::de_roster")]
-    pub benches: Vec<String>,
-    #[serde(deserialize_with = "Spec::de_roster")]
-    pub examples: Vec<String>,
+    pub manager: Member,
+    pub requires: Seats,
+    pub tasks: Seats,
+    pub audits: Seats,
+    pub tests: Seats,
+    pub fuzzes: Seats,
+    pub benches: Seats,
+    pub examples: Seats,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -83,11 +89,11 @@ pub struct Document {
     #[serde(default)]
     pub gate: Gate,
     #[serde(default)]
-    pub agent: Agent,
-    #[serde(default)]
     pub claude: Engine,
     #[serde(default)]
     pub codex: Engine,
+    #[serde(default)]
+    pub agent: Agent,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

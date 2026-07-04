@@ -1,11 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::config::Config;
-use crate::config::base::consts::TOOL;
+use crate::config::base::consts::{PHASES, TOOL};
 use crate::core::error::AppResult;
 use crate::core::fs::{Dir, Path};
 use crate::core::proc::Proc;
-use crate::app::{Halt, Journey, Orchestrator, Status, Ui};
+use crate::app::{Compose, Halt, Journey, Mark, Orchestrator, Status, Ui};
 
 impl Orchestrator {
 
@@ -97,12 +97,12 @@ impl Orchestrator {
 
         Ui::field("team", "");
         Ui::role("manager", self.cfg.manager());
-        Ui::role("architects", &self.cfg.roster("requires").join(" "));
-        Ui::role("executors", &self.cfg.roster("tasks").join(" "));
 
-        for phase in ["audits", "tests", "benches", "examples", "fuzzes"] {
+        for phase in PHASES {
 
-            if self.active(phase) { Ui::role(phase, &self.cfg.roster(phase).join(" ")); }
+            if !self.active(phase) { continue; }
+
+            Ui::role(&format!("{}s", Compose::role_label(phase)), &self.cfg.roster(phase).join(" "));
 
         }
 
@@ -110,7 +110,7 @@ impl Orchestrator {
 
         for ( name, model, effort ) in self.engines() {
 
-            Ui::role(name, &format!("model {model} · effort {effort}"));
+            Ui::role(&name, &format!("model {model} · effort {effort}"));
 
         }
 
@@ -118,15 +118,27 @@ impl Orchestrator {
 
     }
 
-    pub(super) fn engines ( &self ) -> Vec<( &'static str, String, String )> {
+    pub(super) fn engines ( &self ) -> Vec<( String, String, String )> {
 
-        self.cfg.agent.backends().into_iter().map(|name| {
+        let mut out = Vec::new();
 
-            let ( model, effort ) = self.cfg.engine(name);
+        let ( model, effort ) = self.cfg.engine_of_key("manager");
+        out.push(( "manager".to_string(), model, effort ));
 
-            ( name, model, effort )
+        for phase in PHASES {
 
-        }).collect()
+            if !self.active(phase) { continue; }
+
+            for seat in self.cfg.roster(phase) {
+
+                let ( model, effort ) = self.cfg.engine_of_key(&Self::key(phase, &seat));
+                out.push(( format!("{phase} {seat}"), model, effort ));
+
+            }
+
+        }
+
+        out
 
     }
 
@@ -135,16 +147,13 @@ impl Orchestrator {
         let shipped = self.journey.task_status.values().filter(|status| status.as_str() == "shipped").count();
         let total = Dir::markdown(&self.cfg.paths.tasks).len();
 
-        let ran: Vec<&str> = ["requires", "tasks", "audits", "tests", "benches", "examples", "fuzzes"]
-            .into_iter()
-            .filter(|phase| matches!(*phase, "requires" | "tasks") || self.active(phase))
-            .collect();
+        let ran: Vec<&str> = PHASES.into_iter().filter(|phase| self.active(phase)).collect();
 
         Ui::blank();
 
         if self.journey.blocked.is_empty() {
 
-            Ui::ok("journey complete — every phase shipped");
+            Ui::mark(0, Mark::Party, "journey complete — every phase shipped");
             Ui::field("delivered", &format!("{shipped}/{total} task(s)"));
             Ui::field("phases", &ran.join(" → "));
 

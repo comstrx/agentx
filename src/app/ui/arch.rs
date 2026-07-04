@@ -5,6 +5,21 @@ use parking_lot::Mutex;
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Ui;
 
+#[derive(Clone, Copy)]
+pub(crate) enum Mark {
+    Ok,
+    Fail,
+    Warn,
+    Info,
+    Step,
+    Beat,
+    Cool,
+    Rage,
+    Think,
+    Party,
+    Study,
+}
+
 pub(crate) struct Loader {
     pub(crate) active: AtomicBool,
     pub(crate) live: AtomicBool,

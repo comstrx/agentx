@@ -1,3 +1,4 @@
+use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 use super::arch::Env;
@@ -61,11 +62,17 @@ impl Env {
 
             let candidate = dir.join(program);
 
-            if candidate.is_file() { return Some(candidate); }
+            if candidate.is_file() && Self::executable(&candidate) { return Some(candidate); }
 
         }
 
         None
+
+    }
+
+    fn executable ( path: &PathBuf ) -> bool {
+
+        std::fs::metadata(path).is_ok_and(|meta| meta.permissions().mode() & 0o111 != 0)
 
     }
 
