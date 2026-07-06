@@ -15,7 +15,7 @@ impl Orchestrator {
             let ( model, effort ) = self.cfg.engine_of_key(key);
 
             let mut runner = Worker::new(agent);
-            runner.cwd(&self.cfg.root).timeout(self.cfg.agent.timeout).pid_file(&self.cfg.paths.active);
+            runner.cwd(&self.cfg.root).timeout(self.cfg.agent.timeout).pid_file(&self.cfg.paths.active).registry(&self.cfg.paths.workers);
             runner.engine(&model, &effort);
 
             if let Some(session) = self.sessions.get(key) && !session.is_empty() {

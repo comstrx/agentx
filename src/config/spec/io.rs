@@ -4,99 +4,39 @@ use std::path::Path as StdPath;
 use crate::core::error::AppResult;
 use crate::core::fs::File;
 use crate::core::parse::Toml;
-use super::arch::{Agent, Document, Gate, Member, Options, Seats, Spec};
-use crate::config::base::consts::{
-    AGENT_TIMEOUT, CLAUDE_EFFORT, CLAUDE_MODEL, CODEX_EFFORT, CODEX_MODEL, DEFAULT_MODEL,
-    GATE_TIMEOUT, MANAGER_MODEL, MAX_AUDITS, MAX_FIXES, MAX_ROUNDS,
-};
+use super::arch::{Agent, Document, Engine, Gate, Member, Seats, Spec};
+use crate::config::base::consts::{DEFAULT_MODEL, DEFAULT_STAGE, MANAGER_MODEL};
 
 impl Spec {
 
     pub(crate) fn default_toml () -> String {
 
-        let o = Options::default();
-        let a = Agent::default();
-        let b = |value: bool| if value { "true" } else { "false" };
+        let mut document = Document::default();
 
         let mut engines = Document::default();
         engines.fill_defaults();
 
-        let member = |seat: &Member| {
+        let ( model, effort ) = engines.resolve_member(&document.agent.manager);
+        document.agent.manager.model = model;
+        document.agent.manager.effort = effort;
 
-            let ( model, effort ) = engines.resolve_member(seat);
+        for seats in [
+            &mut document.agent.requires, &mut document.agent.tasks, &mut document.agent.audits,
+            &mut document.agent.tests, &mut document.agent.fuzzes, &mut document.agent.benches,
+            &mut document.agent.examples,
+        ] {
 
-            format!("{{ agent = \"{}\", model = \"{model}\", effort = \"{effort}\" }}", seat.agent)
+            for member in &mut seats.members {
 
-        };
+                let ( model, effort ) = engines.resolve_member(member);
+                member.model = model;
+                member.effort = effort;
 
-        let roster = |seats: &Seats| seats.members.iter().map(&member).collect::<Vec<_>>().join(", ");
+            }
 
-        format!(
-"[project]
-inspire       = \"\"
-description   = \"\"
+        }
 
-[option]
-lint          = {lint}
-format        = {format}
-audits        = {audits}
-tests         = {tests}
-fuzzes        = {fuzzes}
-benches       = {benches}
-examples      = {examples}
-comments      = {comments}
-doc_blocks    = {doc_blocks}
-doc_contracts = {doc_contracts}
-train         = {train}
-clear         = {clear}
-
-[gate]
-timeout = {GATE_TIMEOUT}
-command = \"\"
-
-[claude]
-model  = \"{CLAUDE_MODEL}\"
-effort = \"{CLAUDE_EFFORT}\"
-
-[codex]
-model  = \"{CODEX_MODEL}\"
-effort = \"{CODEX_EFFORT}\"
-
-[agent]
-max_audits = {MAX_AUDITS}
-max_rounds = {MAX_ROUNDS}
-max_fixes  = {MAX_FIXES}
-timeout    = {AGENT_TIMEOUT}
-manager    = {manager}
-requires   = [ {r_requires} ]
-tasks      = [ {r_tasks} ]
-audits     = [ {r_audits} ]
-tests      = [ {r_tests} ]
-fuzzes     = [ {r_fuzzes} ]
-benches    = [ {r_benches} ]
-examples   = [ {r_examples} ]
-",
-            lint = b(o.lint),
-            format = b(o.format),
-            audits = b(o.audits),
-            tests = b(o.tests),
-            fuzzes = b(o.fuzzes),
-            benches = b(o.benches),
-            examples = b(o.examples),
-            comments = b(o.comments),
-            doc_blocks = b(o.doc_blocks),
-            doc_contracts = b(o.doc_contracts),
-            train = b(o.train),
-            clear = b(o.clear),
-            manager = member(&a.manager),
-            r_requires = roster(&a.requires),
-            r_tasks = roster(&a.tasks),
-            r_audits = roster(&a.audits),
-            r_tests = roster(&a.tests),
-            r_fuzzes = roster(&a.fuzzes),
-            r_benches = roster(&a.benches),
-            r_examples = roster(&a.examples),
-        )
+        document.render()
 
     }
 
@@ -128,7 +68,7 @@ examples   = [ {r_examples} ]
         let mut document: Document = if body.trim().is_empty() { Document::default() } else { Toml::parse(&body)? };
         document.project = self.clone();
 
-        File::write_atomic(config_file, &Toml::to_string_pretty(&document)?)
+        File::write_atomic(config_file, &document.render())
 
     }
 
@@ -187,7 +127,124 @@ impl Document {
 
     pub fn save ( &self, config_file: &StdPath ) -> AppResult<()> {
 
-        File::write_atomic(config_file, &Toml::to_string_pretty(self)?)
+        File::write_atomic(config_file, &self.render())
+
+    }
+
+    pub fn render ( &self ) -> String {
+
+        let b = |value: bool| if value { "true" } else { "false" };
+
+        let member = |seat: &Member| {
+
+            let agent = seat.agent.trim();
+            let model = seat.model.trim();
+            let effort = seat.effort.trim();
+
+            if model.is_empty() && effort.is_empty() { return Toml::quote(agent); }
+
+            let mut parts = vec![format!("agent = {}", Toml::quote(agent))];
+
+            if !model.is_empty() { parts.push(format!("model = {}", Toml::quote(model))); }
+
+            if !effort.is_empty() { parts.push(format!("effort = {}", Toml::quote(effort))); }
+
+            format!("{{ {} }}", parts.join(", "))
+
+        };
+
+        let roster = |seats: &Seats| format!("[ {} ]", seats.members.iter().map(&member).collect::<Vec<_>>().join(", "));
+
+        let list = |name: &str, values: &[String]| {
+
+            if values.is_empty() { return String::new(); }
+
+            format!("{name:<13} = [ {} ]\n", values.iter().map(|value| Toml::quote(value)).collect::<Vec<_>>().join(", "))
+
+        };
+
+        let engine = |name: &str, engine: &Engine| {
+
+            if engine.model.trim().is_empty() && engine.effort.trim().is_empty() { return String::new(); }
+
+            format!("\n[{name}]\nmodel  = {}\neffort = {}\n", Toml::quote(engine.model.trim()), Toml::quote(engine.effort.trim()))
+
+        };
+
+        let o = &self.option;
+
+        format!(
+"[project]
+inspire       = {inspire}
+stage         = {stage}
+description   = {description}
+{ignore}{include}
+[option]
+lint          = {lint}
+format        = {format}
+audits        = {audits}
+tests         = {tests}
+fuzzes        = {fuzzes}
+benches       = {benches}
+examples      = {examples}
+comments      = {comments}
+doc_blocks    = {doc_blocks}
+doc_contracts = {doc_contracts}
+train         = {train}
+clear         = {clear}
+
+[gate]
+timeout = {gate_timeout}
+command = {gate_command}
+{claude}{codex}
+[agent]
+max_audits = {max_audits}
+max_rounds = {max_rounds}
+max_fixes  = {max_fixes}
+timeout    = {agent_timeout}
+manager    = {manager}
+requires   = {requires}
+tasks      = {tasks}
+audits     = {r_audits}
+tests      = {r_tests}
+fuzzes     = {fuzzes_r}
+benches    = {benches_r}
+examples   = {examples_r}
+",
+            inspire = Toml::quote(self.project.inspire.trim()),
+            stage = Toml::quote(match self.project.stage.trim() { "" => DEFAULT_STAGE, other => other }),
+            description = Toml::quote(self.project.description.trim()),
+            ignore = list("ignore", &self.project.ignore),
+            include = list("include", &self.project.include),
+            lint = b(o.lint),
+            format = b(o.format),
+            audits = b(o.audits),
+            tests = b(o.tests),
+            fuzzes = b(o.fuzzes),
+            benches = b(o.benches),
+            examples = b(o.examples),
+            comments = b(o.comments),
+            doc_blocks = b(o.doc_blocks),
+            doc_contracts = b(o.doc_contracts),
+            train = b(o.train),
+            clear = b(o.clear),
+            gate_timeout = self.gate.timeout,
+            gate_command = Toml::quote(self.gate.command.trim()),
+            claude = engine("claude", &self.claude),
+            codex = engine("codex", &self.codex),
+            max_audits = self.agent.max_audits,
+            max_rounds = self.agent.max_rounds,
+            max_fixes = self.agent.max_fixes,
+            agent_timeout = self.agent.timeout,
+            manager = member(&self.agent.manager),
+            requires = roster(&self.agent.requires),
+            tasks = roster(&self.agent.tasks),
+            r_audits = roster(&self.agent.audits),
+            r_tests = roster(&self.agent.tests),
+            fuzzes_r = roster(&self.agent.fuzzes),
+            benches_r = roster(&self.agent.benches),
+            examples_r = roster(&self.agent.examples),
+        )
 
     }
 

@@ -20,19 +20,22 @@ impl Codex {
 
     }
 
-    fn open ( &mut self, cwd: &StdPath, pid_file: Option<&StdPath> ) -> AppResult<Stream> {
+    fn open ( &mut self, cwd: &StdPath, pid_file: Option<&StdPath>, registry: Option<&StdPath> ) -> AppResult<Stream> {
 
         let mut command = Command::new("codex");
         command.current_dir(cwd).arg("mcp-server");
 
-        let mut stream = match pid_file {
-            Some(path) => {
+        let record = |pid: i32| {
 
-                let record = |pid: i32| { let _ = File::write(path, &pid.to_string()); };
-                Proc::stream(command, Some(&record as &dyn Fn(i32)))?
+            if let Some(path) = pid_file { let _ = File::write(path, &pid.to_string()); }
 
-            }
-            None => Proc::stream(command, None)?,
+            if let Some(ledger) = registry { let _ = File::append(ledger, &format!("{pid}\n")); }
+
+        };
+
+        let mut stream = match pid_file.is_some() || registry.is_some() {
+            true => Proc::stream(command, Some(&record as &dyn Fn(i32)))?,
+            false => Proc::stream(command, None)?,
         };
 
         let id = self.tick();
@@ -174,11 +177,11 @@ impl Backend for Codex {
 
     }
 
-    fn turn ( &mut self, prompt: &str, cwd: &StdPath, timeout: u64, pid_file: Option<&StdPath> ) -> AppResult<String> {
+    fn turn ( &mut self, prompt: &str, cwd: &StdPath, timeout: u64, pid_file: Option<&StdPath>, registry: Option<&StdPath> ) -> AppResult<String> {
 
         if self.stream.is_none() {
 
-            let stream = self.open(cwd, pid_file)?;
+            let stream = self.open(cwd, pid_file, registry)?;
             self.stream = Some(stream);
 
         }

@@ -14,3 +14,4 @@ mod train;
 mod track;
 
 pub use arch::{Flow, Gate, Halt, Orchestrator};
+pub(crate) use arch::{Menu, Ruling};

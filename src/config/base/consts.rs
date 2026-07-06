@@ -22,6 +22,7 @@ pub const NODE_FILE: &str      = "config.json";
 pub const STATE_FILE: &str     = "state.json";
 pub const PID_FILE: &str       = "agentx.pid";
 pub const ACTIVE_FILE: &str    = "active.pid";
+pub const WORKERS_FILE: &str   = "workers.pid";
 pub const SESSIONS_FILE: &str  = "sessions.json";
 pub const DRAIN_FILE: &str     = "drain";
 pub const GATE_LOG: &str       = "gate.log";
@@ -37,8 +38,10 @@ pub const REQUIRES: &str       = "requires";
 pub const AUDITS: &str         = "audits";
 
 pub const MD_EXT: &str         = "md";
+pub const BUSY_LABEL: &str     = "orchestrating";
 pub const REVIEW_SUFFIX: &str  = "-review.md";
 pub const CONSULT_FILE: &str   = "agentx-consult";
+pub const CONFLICT_FILE: &str  = "conflict";
 
 pub const PHASES: [&str; 7]          = ["requires", "tasks", "audits", "tests", "benches", "examples", "fuzzes"];
 pub const FRAMES: [&str; 10]         = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -48,7 +51,6 @@ pub const CONTEXT_BUCKETS: [&str; 6] = ["overview", "contracts", "skills", "desi
 pub const PAD_TOP: usize             = 1;
 pub const PAD_BOTTOM: usize          = 0;
 pub const TICK_MS: u64               = 90;
-pub const RULE_WIDTH: usize          = 68;
 pub const BAR_WIDTH: usize           = 18;
 pub const LOG_TAIL: usize            = 12;
 pub const BUSY_WIDTH: usize          = 56;
@@ -63,11 +65,10 @@ pub const GLYPH_COOL: (&str, &str)   = ( "😎", "[B]" );
 pub const GLYPH_RAGE: (&str, &str)   = ( "😡", "[#]" );
 pub const GLYPH_THINK: (&str, &str)  = ( "🤔", "[?]" );
 pub const GLYPH_PARTY: (&str, &str)  = ( "🥳", "[o]" );
-pub const GLYPH_STUDY: (&str, &str)  = ( "🔥", "[s]" );
+pub const GLYPH_STUDY: (&str, &str)  = ( "⏳", "[s]" );
 pub const GLYPH_TITLE: (&str, &str)  = ( "✨", "**" );
 pub const GLYPH_ON: (&str, &str)     = ( "🟢", "(+)" );
 pub const GLYPH_OFF: (&str, &str)    = ( "⚪", "( )" );
-pub const GLYPH_RULE: (&str, &str)   = ( "─", "-" );
 pub const GLYPH_FULL: (&str, &str)   = ( "█", "#" );
 pub const GLYPH_REST: (&str, &str)   = ( "░", "-" );
 
@@ -98,7 +99,6 @@ pub const BACKOFF_SHIFT: u32   = 4;
 pub const BACKOFF_CAP: u64     = 15;
 pub const POLL_MS: u64         = 100;
 pub const POLL_TICKS: u32      = 10;
-
 pub const PROBE_TIMEOUT: u64   = 15;
 pub const TURN_TIMEOUT: u64    = 30;
 pub const GATE_TIMEOUT: u64    = 1000;
@@ -107,8 +107,11 @@ pub const AGENT_TIMEOUT: u64   = 10000;
 pub const MANAGER_MODEL: &str  = "claude";
 pub const DEFAULT_MODEL: &str  = "claude";
 
+pub const DEFAULT_STAGE: &str        = "dev";
+pub const STAGES: [&str; 3]          = ["dev", "staging", "live"];
+
 pub const CLAUDE_MODEL: &str   = "claude-opus-4-8";
-pub const CLAUDE_EFFORT: &str  = "max";
+pub const CLAUDE_EFFORT: &str  = "xhigh";
 
 pub const CODEX_MODEL: &str    = "gpt-5.5";
 pub const CODEX_EFFORT: &str   = "high";

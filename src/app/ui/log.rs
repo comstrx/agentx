@@ -1,4 +1,3 @@
-use crate::config::base::consts::{GLYPH_RULE, RULE_WIDTH};
 use crate::app::{Mark, Ui};
 
 impl Ui {
@@ -17,12 +16,8 @@ impl Ui {
 
     pub fn rule ( label: &str ) {
 
-        let dash = Self::pick(GLYPH_RULE);
-        let head = format!("{} {label} ", dash.repeat(2));
-        let fill = RULE_WIDTH.saturating_sub(head.chars().count()).max(2);
-
         Self::blank();
-        Self::line(&Self::paint(&format!("{head}{}", dash.repeat(fill)), Self::accent()));
+        Self::line(&Self::paint(&format!("* {label}:"), Self::accent()));
         Self::blank();
 
     }

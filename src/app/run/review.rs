@@ -16,7 +16,7 @@ impl Orchestrator {
         self.archive_review(phase)?;
 
         let review = self.cfg.paths.review_of(phase);
-        File::write(&review, "")?;
+        File::remove(&review);
 
         self.journey.manager_review = "pending".to_string();
         self.journey.current_agent.clear();

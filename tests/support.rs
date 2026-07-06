@@ -151,3 +151,23 @@ fn locate_matches_stripped_name_case_insensitively_last_wins () {
     let _ = std::fs::remove_dir_all(&base);
 
 }
+
+#[test]
+fn walk_survives_symlink_cycles () {
+
+    let base = std::env::temp_dir().join(format!("agentx-cycle-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+
+    let nest = base.join("a").join("b");
+    std::fs::create_dir_all(&nest).unwrap();
+    std::fs::write(nest.join("leaf.md"), "x").unwrap();
+    std::os::unix::fs::symlink(&base, nest.join("loop")).unwrap();
+
+    let seen = Dir::walk(&base);
+
+    assert!(seen.iter().any(|path| path.ends_with("leaf.md")));
+    assert!(seen.len() < 12);
+
+    let _ = std::fs::remove_dir_all(&base);
+
+}

@@ -3,26 +3,101 @@ use std::path::Path as StdPath;
 use crate::config::{Config, Train, base::prompts as P};
 use crate::config::base::consts::PHASES;
 use crate::core::fs::{Dir, Path};
-use crate::app::{Compose, Journey};
+use crate::app::{Compose, Journey, Ruling};
 
 impl Compose {
 
-    pub(crate) fn manager_intake ( cfg: &Config, journey: &Journey ) -> String {
+    fn source_list ( cfg: &Config ) -> String {
 
         let sources = &cfg.context.requires;
 
-        let list = match sources.is_empty() {
+        match sources.is_empty() {
             true => "  (none discovered)".to_string(),
             false => sources.iter().map(|path| format!("  {}", Self::rel(path, &cfg.root))).collect::<Vec<_>>().join("\n"),
-        };
+        }
+
+    }
+
+    pub(crate) fn manager_requires_check ( cfg: &Config ) -> String {
+
+        Self::render(&[P::INTAKE_REQUIRES_CHECK.to_string()], &[
+            ( "sources", Self::source_list(cfg) ),
+            ( "conflict", Self::rel(&cfg.paths.conflict, &cfg.root) ),
+        ])
+
+    }
+
+    pub(crate) fn manager_convert ( cfg: &Config, journey: &Journey, ruling: Option<Ruling> ) -> String {
+
+        let mut parts = vec![P::MANAGER_INTAKE.to_string()];
+
+        if cfg.force { parts.push(P::INTAKE_FORCED.to_string()); }
+        else {
+
+            match ruling {
+                Some(Ruling::Proceed) => parts.push(P::INTAKE_PROCEED.to_string()),
+                Some(Ruling::Fix)     => parts.push(P::INTAKE_REQUIRES_FIX.to_string()),
+                _                     => {}
+            }
+
+        }
+
+        parts.push(P::INTAKE_CLOSE.to_string());
 
         let pairs = vec![
-            ( "sources", list ),
+            ( "sources", Self::source_list(cfg) ),
             ( "requires", Self::rel(&cfg.paths.inbox, &cfg.root) ),
             ( "state", Self::intake_state(cfg, journey) ),
+            ( "conflict", Self::rel(&cfg.paths.conflict, &cfg.root) ),
         ];
 
-        Self::render(&[P::MANAGER_INTAKE.to_string()], &pairs)
+        Self::render(&parts, &pairs)
+
+    }
+
+    pub(crate) fn manager_project_check ( cfg: &Config ) -> String {
+
+        Self::render(&[P::INTAKE_PROJECT.to_string()], &[
+            ( "root", Path::display(&cfg.root) ),
+            ( "conflict", Self::rel(&cfg.paths.conflict, &cfg.root) ),
+        ])
+
+    }
+
+    pub(crate) fn manager_project_fix ( _cfg: &Config ) -> String {
+
+        P::INTAKE_PROJECT_FIX.to_string()
+
+    }
+
+    pub(crate) fn manager_requires_fix ( cfg: &Config ) -> String {
+
+        Self::render(&[P::INTAKE_REQUIRES_FIX.to_string()], &[( "requires", Self::rel(&cfg.paths.inbox, &cfg.root) )])
+
+    }
+
+    pub(crate) fn manager_gate_fix ( cfg: &Config, answer: &str ) -> String {
+
+        Self::render(&[P::INTAKE_GATE_FIX.to_string()], &[
+            ( "pillars", Self::gate_pillars(cfg) ),
+            ( "answer", answer.to_string() ),
+        ])
+
+    }
+
+    pub(crate) fn manager_gate_check ( cfg: &Config ) -> String {
+
+        let gate = match cfg.gate.command.trim().is_empty() {
+            true => "(empty - no gate is configured)".to_string(),
+            false => cfg.gate.command.trim().to_string(),
+        };
+
+        Self::render(&[P::INTAKE_GATE.to_string()], &[
+            ( "gate", gate ),
+            ( "pillars", Self::gate_pillars(cfg) ),
+            ( "conflict", Self::rel(&cfg.paths.conflict, &cfg.root) ),
+            ( "config", Self::rel(&cfg.paths.config_file, &cfg.root) ),
+        ])
 
     }
 
@@ -72,6 +147,13 @@ impl Compose {
 
             parts.push(P::MANAGER_POLICY.to_string());
             parts.push(Self::author_policy(cfg));
+
+        }
+
+        if matches!(phase, "tasks" | "audits") {
+
+            parts.push(P::MANAGER_STAGE.to_string());
+            parts.push(Self::stage_policy(cfg).to_string());
 
         }
 
@@ -224,14 +306,6 @@ impl Compose {
             ( "archive", Path::display(&Train::histories()) ),
             ( "answer", answer.to_string() ),
         ])
-
-    }
-
-    pub(crate) fn manager_gate ( cfg: &Config, answer: &str ) -> String {
-
-        let parts = vec![P::MANAGER_ROLE.to_string(), P::MANAGER_GATE.to_string()];
-
-        Self::render(&parts, &[( "pillars", Self::gate_pillars(cfg) ), ( "answer", answer.to_string() )])
 
     }
 

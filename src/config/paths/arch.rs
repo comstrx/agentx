@@ -12,9 +12,12 @@ pub struct Paths {
     pub state: PathBuf,
     pub pid: PathBuf,
     pub active: PathBuf,
+    pub workers: PathBuf,
     pub sessions: PathBuf,
     pub drain: PathBuf,
     pub gate_log: PathBuf,
+
+    pub conflict: PathBuf,
 
     pub inbox: PathBuf,
     pub tasks: PathBuf,

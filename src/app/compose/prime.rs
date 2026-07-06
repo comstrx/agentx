@@ -10,41 +10,63 @@ impl Compose {
         let parts: Vec<String> = match phase {
             "requires" => vec![
                 P::PRIME.to_string(),
+                P::CRAFT.to_string(),
+                Self::stage_policy(cfg).to_string(),
                 Self::setup(cfg, phase, agent),
                 Self::stage(cfg, journey),
                 P::REQUIRES_ROLE.to_string(),
                 P::REQUIRES_MISSION.to_string(),
                 P::REQUIRES_FLAG.to_string(),
+                P::DOORS.to_string(),
                 P::TOLERANCE.to_string(),
                 P::PRIME_READY.to_string(),
             ],
-            "tasks" => vec![
-                P::PRIME.to_string(),
-                Self::setup(cfg, phase, agent),
-                Self::stage(cfg, journey),
-                P::TASKS_ROLE.to_string(),
-                P::TASKS_IMPLEMENT.to_string(),
-                P::TASKS_REMEDIATION.to_string(),
-                Self::author_policy(cfg),
-                P::TOLERANCE.to_string(),
-                P::PRIME_READY.to_string(),
-            ],
+            "tasks" => {
+
+                let mut parts = vec![
+                    P::PRIME.to_string(),
+                    P::CRAFT.to_string(),
+                    Self::stage_policy(cfg).to_string(),
+                    Self::setup(cfg, phase, agent),
+                    Self::stage(cfg, journey),
+                    P::TASKS_ROLE.to_string(),
+                    P::TASKS_IMPLEMENT.to_string(),
+                ];
+
+                if cfg.option.audits { parts.push(P::TASKS_REMEDIATION.to_string()); }
+
+                parts.push(P::DOORS.to_string());
+                parts.push(P::DEPENDENCIES.to_string());
+                parts.push(Self::author_policy(cfg));
+                parts.push(P::TOLERANCE.to_string());
+                parts.push(P::PRIME_READY.to_string());
+
+                parts
+
+            },
             "audits" => vec![
                 P::PRIME.to_string(),
+                P::CRAFT.to_string(),
+                Self::stage_policy(cfg).to_string(),
                 Self::setup(cfg, phase, agent),
                 Self::stage(cfg, journey),
                 P::AUDITS_ROLE.to_string(),
                 P::AUDITS_REVIEW.to_string(),
                 P::AUDITS_WRITE.to_string(),
+                P::DOORS.to_string(),
                 P::TOLERANCE.to_string(),
                 P::PRIME_READY.to_string(),
             ],
             "tests" | "benches" | "examples" | "fuzzes" => vec![
                 P::PRIME.to_string(),
+                P::CRAFT.to_string(),
+                Self::stage_policy(cfg).to_string(),
                 Self::setup(cfg, phase, agent),
                 Self::stage(cfg, journey),
                 Self::mission_of(phase).to_string(),
                 P::PRODUCE_SCOPE.to_string(),
+                P::DOORS.to_string(),
+                P::DEPENDENCIES.to_string(),
                 P::TOLERANCE.to_string(),
                 P::PRIME_READY.to_string(),
             ],
@@ -71,6 +93,8 @@ impl Compose {
 
         let parts = [
             P::PRIME.to_string(),
+            P::CRAFT.to_string(),
+            Self::stage_policy(cfg).to_string(),
             Self::setup(cfg, "requires", "manager"),
             Self::stage(cfg, journey),
             P::MANAGER_ROLE.to_string(),
@@ -85,7 +109,7 @@ impl Compose {
 
     fn stage ( cfg: &Config, journey: &Journey ) -> String {
 
-        if !journey.intake_done && journey.task_status.is_empty() && journey.phase <= Phase::Requires {
+        if journey.task_status.is_empty() && journey.phase <= Phase::Requires && Dir::markdown(&cfg.paths.tasks).is_empty() {
 
             return P::STARTUP.to_string();
 
@@ -152,12 +176,12 @@ impl Compose {
         let onoff = |on: bool| if on { "on" } else { "off" };
 
         let archetype = match cfg.spec.inspire.trim().is_empty() {
-            true => "unbound — the manager classifies it during this run".to_string(),
+            true => "unbound — ruled on at intake: classified by the manager on a fix ruling, or runs without inherited knowledge".to_string(),
             false => cfg.spec.inspire.clone(),
         };
 
         let gate = match cfg.gate.command.trim().is_empty() {
-            true => "being detected by the manager during priming".to_string(),
+            true => "none yet — verified at intake; the manager composes one if the operator rules fix".to_string(),
             false => cfg.gate.command.clone(),
         };
 
@@ -208,11 +232,13 @@ impl Compose {
         let role = Self::role_label(phase);
         let judged = format!("The manager ({}) reads your report and the real code after every round and rules ship or revise.", cfg.manager());
 
+        let consumer = Self::consumer_of(phase);
+
         if roster.len() <= 1 {
 
             return format!(
                 "- YOUR seat: {agent}, the ONLY {role} this run — the whole relay is yours: no earlier report to \
-                inherit, no one refining behind you. {judged}",
+                inherit, no one refining behind you. {judged} {consumer}",
             );
 
         }
@@ -225,8 +251,19 @@ impl Compose {
         format!(
             "- YOUR seat: {agent}, one of the {role}s above. The {role} relay runs in this EXACT order every \
             round: {relay} — each seat opens the reports of the seats before it and sharpens the shared work, \
-            and the seats after you inherit yours. {judged}",
+            and the seats after you inherit yours. {judged} {consumer}",
         )
+
+    }
+
+    fn consumer_of ( phase: &str ) -> &'static str {
+
+        match phase {
+            "requires" => "Your task files are the ONLY spec the executors build from — a vague line in them becomes an executor's guess.",
+            "tasks"    => "Your code is what the operator ships and what every later active phase exercises — the whole run stands on what you leave behind.",
+            "audits"   => "Your remediation tasks are executed VERBATIM by the executors — an imprecise Fix becomes wrong code.",
+            _          => "Your captured evidence is what the manager's verdict stands on — an unproven claim misleads the whole run.",
+        }
 
     }
 

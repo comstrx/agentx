@@ -96,6 +96,21 @@ impl File {
 
     }
 
+    pub fn create_new ( path: &StdPath, body: &str ) -> AppResult<()> {
+
+        if let Some(parent) = path.parent() {
+
+            std::fs::create_dir_all(parent)?;
+
+        }
+
+        let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
+        file.write_all(body.as_bytes())?;
+
+        Ok(())
+
+    }
+
     pub fn append ( path: &StdPath, body: &str ) -> AppResult<()> {
 
         if let Some(parent) = path.parent() {

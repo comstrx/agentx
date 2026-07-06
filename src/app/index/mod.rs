@@ -1,5 +1,6 @@
 mod arch;
 mod setup;
+mod compose;
 mod create;
 mod lifecycle;
 mod classify;

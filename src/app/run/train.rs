@@ -12,7 +12,7 @@ impl Orchestrator {
 
         match self.train(primed) {
             Ok(()) => Ok(()),
-            Err(Halt::Drained) | Err(Halt::Stopped) => {
+            Err(Halt::Drained) | Err(Halt::Stopped) | Err(Halt::Paused) => {
 
                 Ui::blank();
                 Ui::warn(&format!("training interrupted — run `{TOOL} train` again to finish, then `{TOOL} clear`"));

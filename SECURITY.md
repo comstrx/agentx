@@ -41,3 +41,7 @@ Examples include:
 - leaking secrets in logs/output (tokens, keys, credentials)
 - destructive file operations beyond intended scope
 - supply-chain integrity issues with clear real-world impact
+
+## Trust model
+
+Running `agentx` on a repository means trusting that repository's **prose, not just its code**: the agents run with full permissions and read every discovered file, and the manager composes the quality gate command from the repo's own manifests and scripts. That gate is saved to `Agentx.toml` and runs via `sh` after every change — review it any time with `agentx gate --show`, and treat an unfamiliar repo's `Agentx.toml` like you would its CI config.

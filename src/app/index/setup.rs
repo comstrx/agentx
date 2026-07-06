@@ -5,13 +5,31 @@ use crate::config::base::consts::{CACHE_DIR, CONFIG_FILE, DOCS_DIR, TOOL};
 
 use crate::core::error::{AppError, AppResult};
 use crate::core::fs::{Dir, File, Path};
-use crate::core::term::Term;
 use crate::core::text::Text;
 use crate::app::{App, Flags, Project, Ui};
 
 impl App {
 
     pub fn init ( dir: &StdPath, flags: &Flags ) -> AppResult<()> {
+
+        Ui::blank();
+        Ui::title(&format!("{TOOL} · init"));
+        Ui::blank();
+        Ui::step("scaffolding the config, runtime, and docs");
+
+        Self::prepare(dir, flags)
+
+    }
+
+    pub(super) fn init_stage ( dir: &StdPath, flags: &Flags ) -> AppResult<()> {
+
+        Ui::rule("init · scaffolding the config, runtime, and docs");
+
+        Self::prepare(dir, flags)
+
+    }
+
+    fn prepare ( dir: &StdPath, flags: &Flags ) -> AppResult<()> {
 
         let paths = Paths::new(dir);
         Train::init()?;
@@ -30,7 +48,8 @@ impl App {
         let gate = Self::offer_gate(&paths)?;
 
         Ui::blank();
-        Ui::ok(&format!("initialised  {}", dir.display()));
+        Ui::ok(&format!("initialised -> {}", dir.display()));
+        Ui::blank();
 
         if !bound.is_empty() { Ui::detail("inspire", &bound); }
 
@@ -68,9 +87,7 @@ impl App {
     fn configure ( paths: &Paths, flags: &Flags ) -> AppResult<String> {
 
         let mut document = Spec::document(&paths.config_file)?;
-        let mut dirty = Self::apply_flags(&mut document, flags)?;
-
-        dirty |= document.fill_defaults();
+        let dirty = Self::apply_flags(&mut document, flags)?;
 
         if dirty { document.save(&paths.config_file)?; }
 
@@ -103,7 +120,7 @@ impl App {
 
         Ui::blank();
 
-        let Some(command) = Ui::ask("  set the quality gate — one read-only shell command", "(enter to skip · the manager composes one after studying the project)")? else { return Ok(current) };
+        let Some(command) = Ui::ask("  set the quality gate — one read-only shell command", "(enter to skip · the manager verifies it at intake and composes one on a fix ruling)")? else { return Ok(current) };
 
         document.gate.command = command.clone();
         document.save(&paths.config_file)?;
@@ -286,7 +303,7 @@ impl App {
 
         Ui::blank();
 
-        let keys = if Term::icons() { "↑/↓ move" } else { "j/k move" };
+        let keys = Ui::keys();
         let hint = if allow_auto { format!("{keys} · enter choose · q auto") } else { format!("{keys} · enter choose · required") };
         let picked = Ui::choose(&format!("  select the inspiration project node   ({hint})"), &options, 0)?;
 
@@ -300,7 +317,7 @@ impl App {
 
     }
 
-    pub fn inspire ( dir: &StdPath, name: Option<&str> ) -> AppResult<()> {
+    pub fn inspire ( dir: &StdPath, name: Option<&str>, show: bool ) -> AppResult<()> {
 
         let root = Project::resolve_root(dir);
         let paths = Paths::new(&root);
@@ -316,9 +333,26 @@ impl App {
         let mut document = Spec::document(&paths.config_file)?;
         let current = document.project.inspire.trim().to_string();
 
+        if show {
+
+            match current.is_empty() {
+                true => {
+
+                    Ui::blank();
+                    Ui::point(0, &format!("no inspiration bound — the manager classifies it during intake, or bind one: `{TOOL} inspire <NAME|N>`"));
+                    Ui::blank();
+
+                }
+                false => println!("{current}"),
+            }
+
+            return Ok(());
+
+        }
+
         let picked = match name {
             Some(value) => Self::select_inspire(value)?,
-            None if !Term::is_tty() => return Err(AppError::message(format!("no TTY for the menu — pass the node explicitly: `{TOOL} inspire <name|N>`"))),
+            None if !Self::interactive() => return Err(AppError::message(format!("no interactive terminal for the menu — pass the node explicitly: `{TOOL} inspire <name|N>` (or -i)"))),
             None => match Self::choose_inspire(false)? {
                 Some(node) => node,
                 None => {
@@ -362,7 +396,7 @@ impl App {
 
     }
 
-    pub fn gate ( dir: &StdPath, command: Option<&str> ) -> AppResult<()> {
+    pub fn gate ( dir: &StdPath, command: Option<&str>, show: bool ) -> AppResult<()> {
 
         let root = Project::resolve_root(dir);
         let paths = Paths::new(&root);
@@ -376,9 +410,26 @@ impl App {
         let mut document = Spec::document(&paths.config_file)?;
         let current = document.gate.command.trim().to_string();
 
+        if show {
+
+            match current.is_empty() {
+                true => {
+
+                    Ui::blank();
+                    Ui::point(0, &format!("no gate set — the manager composes one at intake on a fix ruling, or set it: `{TOOL} gate <COMMAND>`"));
+                    Ui::blank();
+
+                }
+                false => println!("{current}"),
+            }
+
+            return Ok(());
+
+        }
+
         let picked = match command {
             Some(value) if !value.trim().is_empty() => value.trim().to_string(),
-            _ if !Self::interactive() => return Err(AppError::message(format!("no TTY for the prompt — pass the command explicitly: `{TOOL} gate <COMMAND>` (or -g)"))),
+            _ if !Self::interactive() => return Err(AppError::message(format!("no interactive terminal for the prompt — pass the command explicitly: `{TOOL} gate <COMMAND>` (or -g)"))),
             _ => {
 
                 Ui::blank();

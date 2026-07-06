@@ -22,7 +22,7 @@ impl Orchestrator {
                 Ok(())
 
             }
-            Err(Halt::Drained) | Err(Halt::Stopped) => {
+            Err(Halt::Drained) | Err(Halt::Stopped) | Err(Halt::Paused) => {
 
                 self.mark_stopped();
 

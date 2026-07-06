@@ -21,6 +21,7 @@ fn project_and_option_defaults () {
     let spec = Spec::default();
 
     assert!(spec.inspire.is_empty());
+    assert_eq!(spec.stage, "dev");
     assert!(spec.description.is_empty());
 
     let opt = Options::default();
@@ -282,6 +283,34 @@ fn spec_round_trips_through_toml () {
 
     assert_eq!(loaded.inspire, "demo");
     assert_eq!(loaded.description, "a demo project");
+
+    fs::remove_dir_all(&dir).ok();
+
+}
+
+#[test]
+fn saves_keep_the_house_shape () {
+
+    let ( dir, file ) = write_agent("shape", "\
+[project]
+inspire = \"laravel-saas\"
+[gate]
+command = \"composer verify\"
+[agent]
+requires = [ \"claude\", { agent = \"codex\", model = \"gpt-5.5\" } ]
+");
+
+    Spec::document(&file).unwrap().save(&file).unwrap();
+
+    let body = fs::read_to_string(&file).unwrap();
+
+    assert!(body.contains("inspire       = \"laravel-saas\""));
+    assert!(body.contains("stage         = \"dev\""));
+    assert!(body.contains("command = \"composer verify\""));
+    assert!(body.contains("requires   = [ \"claude\", { agent = \"codex\", model = \"gpt-5.5\" } ]"));
+    assert!(!body.contains("[[agent.requires]]"));
+    assert!(!body.contains("[claude]"));
+    assert!(!body.contains("[codex]"));
 
     fs::remove_dir_all(&dir).ok();
 

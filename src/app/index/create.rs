@@ -30,7 +30,7 @@ impl App {
 
         Self::guard_signals();
 
-        Self::init(&target, &Flags { inspire: Some(inspire.as_str()), ..*flags })?;
+        Self::init_stage(&target, &Flags { inspire: Some(inspire.as_str()), ..*flags })?;
 
         if Proc::aborted() {
 
@@ -46,7 +46,7 @@ impl App {
 
         Self::ensure_agents(&config)?;
 
-        Self::engage(&paths)?;
+        Self::claim(&paths)?;
 
         let mut orchestrator = Orchestrator::new(config);
 

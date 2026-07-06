@@ -36,11 +36,12 @@ impl App {
         Ui::field("cache", &Path::relative_one(&paths.cache, &root));
 
         let kind = match spec.inspire.is_empty() {
-            true => format!("(unbound — set --inspire or let `{TOOL} start` classify it)"),
+            true => format!("(unbound — `{TOOL} inspire <name|N>` binds one, or rule fix at intake)"),
             false => spec.inspire.clone(),
         };
 
         Ui::field("inspire", &kind);
+        Ui::field("stage", &spec.stage);
 
         let tool = Proc::read_pid(&paths.pid);
         let active = Proc::read_pid(&paths.active);
@@ -61,6 +62,7 @@ impl App {
         Ui::blank();
         Ui::head(&format!("Config  ·  [project]  ({CONFIG_FILE})"));
         Ui::pair("inspire", &format!("{:?}", spec.inspire));
+        Ui::pair("stage", &format!("{:?}", spec.stage));
         Ui::pair("description", &format!("{:?}", spec.description));
 
         if !spec.ignore.is_empty() { Ui::pair("ignore", &format!("{:?}", spec.ignore)); }

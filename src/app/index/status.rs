@@ -260,7 +260,7 @@ impl App {
 
                 if !journey.intake_done {
 
-                    return ( "manager".to_string(), "ordering the discovered requirements into a backlog".to_string(), "intake".to_string() );
+                    return ( "manager".to_string(), "verifying the ground and ordering the backlog".to_string(), "intake".to_string() );
 
                 }
 

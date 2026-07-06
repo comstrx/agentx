@@ -1,6 +1,6 @@
 use std::path::{Path as StdPath, PathBuf};
 use std::process::Command;
-use nix::sys::signal::{SigSet, SigmaskHow, Signal, pthread_sigmask};
+use nix::sys::signal::{SigSet, SigmaskHow, Signal, killpg, pthread_sigmask};
 use nix::unistd::{Pid, setpgid};
 
 use crate::config::Paths;
@@ -32,11 +32,61 @@ impl App {
 
     }
 
-    pub(super) fn engage ( paths: &Paths ) -> AppResult<()> {
+    pub(super) fn claim ( paths: &Paths ) -> AppResult<()> {
 
         let _ = setpgid(Pid::from_raw(0), Pid::from_raw(0));
 
-        Proc::write_pid(&paths.pid)
+        if !Self::acquire(paths) {
+
+            if let Some(pid) = Proc::read_pid(&paths.pid) && Proc::is_alive(pid) {
+
+                return Err(AppError::message(format!("a run is already active (pid {pid}); stop or drain it first")));
+
+            }
+
+            let stale = paths.pid.with_extension("stale");
+
+            if File::rename(&paths.pid, &stale).is_ok() { File::remove(&stale); }
+
+            if !Self::acquire(paths) {
+
+                if Path::exists(&paths.pid) {
+
+                    return Err(AppError::message("a run is already active — another process just took the lock; stop or drain it first"));
+
+                }
+
+                return Err(AppError::message(format!("could not take the run lock at {} — check the directory is writable", Path::display(&paths.pid))));
+
+            }
+
+        }
+
+        Self::sweep_workers(paths);
+
+        Ok(())
+
+    }
+
+    fn acquire ( paths: &Paths ) -> bool {
+
+        File::create_new(&paths.pid, &Proc::pid().to_string()).is_ok()
+
+    }
+
+    pub(super) fn sweep_workers ( paths: &Paths ) {
+
+        for line in File::lines(&paths.workers) {
+
+            let Ok(pid) = line.trim().parse::<i32>() else { continue; };
+
+            if pid == Proc::pid() as i32 { continue; }
+
+            if Proc::is_alive(pid) && Proc::leads(pid) { let _ = killpg(Pid::from_raw(pid), Signal::SIGKILL); }
+
+        }
+
+        File::remove(&paths.workers);
 
     }
 
@@ -44,6 +94,7 @@ impl App {
 
         File::remove(&paths.pid);
         File::remove(&paths.active);
+        File::remove(&paths.workers);
 
     }
 

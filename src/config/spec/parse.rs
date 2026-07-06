@@ -212,6 +212,24 @@ impl Spec {
 
     }
 
+    pub(crate) fn de_stage <'de, D> ( deserializer: D ) -> Result<String, D::Error> where D: Deserializer<'de> {
+
+        use crate::config::base::consts::{DEFAULT_STAGE, STAGES};
+
+        let value = String::deserialize(deserializer)?;
+
+        let stage = match value.trim().to_ascii_lowercase().as_str() {
+            "" => DEFAULT_STAGE,
+            "dev" | "debug" | "development" => "dev",
+            "staging" | "stage" => "staging",
+            "live" | "production" | "prod" => "live",
+            _ => return Err(Error::custom(format!("unknown stage {value:?} — one of: {} (debug/stage/production accepted as aliases)", STAGES.join(", ")))),
+        };
+
+        Ok(stage.to_string())
+
+    }
+
     pub(crate) fn de_manager <'de, D> ( deserializer: D ) -> Result<Member, D::Error> where D: Deserializer<'de> {
 
         struct One;

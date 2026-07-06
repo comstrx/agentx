@@ -166,6 +166,14 @@ pub struct Cli {
     pub yes: bool,
 
     #[arg(
+        short = 'f',
+        long = "force",
+        global = true,
+        help = "Never pause intake on an objection — conflicts resolve to the narrowest assumption, recorded in the backlog",
+    )]
+    pub force: bool,
+
+    #[arg(
         short = 'b',
         long = "background",
         visible_alias = "bg",
@@ -255,12 +263,18 @@ pub enum Command {
     Inspire {
         #[arg(value_name = "NAME|N", help = "Project node name or its list number; omit to pick from the menu")]
         name: Option<String>,
+
+        #[arg(long = "show", conflicts_with = "name", help = "Print the current inspiration binding and exit — no changes")]
+        show: bool,
     },
 
     #[command(about = "Set or switch the project's quality-gate command — the check this tool runs after every code turn")]
     Gate {
         #[arg(value_name = "COMMAND", help = "The shell command; omit to type it at a prompt")]
         command: Option<String>,
+
+        #[arg(long = "show", conflicts_with = "command", help = "Print the current gate command and exit — no changes")]
+        show: bool,
     },
 
     #[command(about = "Print a clean snapshot of the project: config, pids, paths, classification, journey, sessions")]
@@ -275,10 +289,22 @@ pub enum Command {
     #[command(about = "Check that every required agent CLI and tool is installed and runnable before a run")]
     Doctor,
 
+    #[command(about = "Print the exact assembled prompts the agents receive — real project values, zero agent calls")]
+    Compose {
+        #[arg(short = 'r', long = "role", value_name = "ROLE", help = "Only this role: manager, architect, executor, auditor, tester, bencher, exampler, fuzzer (aliases + phase names work)")]
+        role: Option<String>,
+
+        #[arg(short = 'p', long = "phase", value_name = "PHASE", help = "Only this turn: init, confirm, intake, convert, work, discover, gate, review, finalize — or a single fragment: fence, evidence, report")]
+        phase: Option<String>,
+
+        #[arg(short = 'o', long = "out", value_name = "FILE", help = "Write the blocks to FILE instead of the terminal")]
+        out: Option<PathBuf>,
+    },
+
     #[command(about = "Re-extract the shipped knowledge nodes into ~/.agentx, keeping learned history")]
     Sync,
 
-    #[command(about = "Wipe and re-seed the global training center (~/.agentx) from the binary, learned history included")]
+    #[command(about = "Wipe and re-seed the global training center (~/.agentx) from the binary — always asks first; headless needs -y")]
     Reset,
 
     #[command(about = "Print a shell completion script (bash, zsh, fish, elvish, powershell) to stdout")]
@@ -315,6 +341,7 @@ pub struct Flags<'a> {
     pub ignore: &'a [PathBuf],
     pub include: &'a [PathBuf],
     pub yes: bool,
+    pub force: bool,
     pub background: bool,
     pub no_train: bool,
     pub no_clear: bool,

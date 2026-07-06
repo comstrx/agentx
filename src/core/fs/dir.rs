@@ -1,8 +1,11 @@
+use std::collections::HashSet;
 use std::path::{Path as StdPath, PathBuf};
 
 use crate::core::error::AppResult;
 use crate::core::{date::Date, text::Text};
 use super::arch::{Dir, Path};
+
+const WALK_DEPTH: usize = 64;
 
 impl Dir {
 
@@ -228,13 +231,26 @@ impl Dir {
     pub fn walk ( dir: &StdPath ) -> Vec<PathBuf> {
 
         let mut out = Vec::new();
+        let mut seen = HashSet::new();
+
+        Self::descend(dir, &mut out, &mut seen, 0);
+
+        out
+
+    }
+
+    fn descend ( dir: &StdPath, out: &mut Vec<PathBuf>, seen: &mut HashSet<PathBuf>, depth: usize ) {
+
+        if depth >= WALK_DEPTH { return; }
+
+        if let Ok(real) = dir.canonicalize() && !seen.insert(real) { return; }
 
         for path in Self::entries(dir) {
 
             if path.is_dir() {
 
                 out.push(path.clone());
-                out.extend(Self::walk(&path));
+                Self::descend(&path, out, seen, depth + 1);
 
             }
             else {
@@ -244,8 +260,6 @@ impl Dir {
             }
 
         }
-
-        out
 
     }
 

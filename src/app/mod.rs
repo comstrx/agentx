@@ -9,8 +9,8 @@ mod ui;
 pub use cli::{Cli, Flags};
 pub use index::App;
 
-pub(crate) use compose::Compose;
+pub(crate) use compose::{Compose, Stage};
 pub(crate) use project::Project;
-pub(crate) use run::{Flow, Gate, Halt, Orchestrator};
+pub(crate) use run::{Flow, Gate, Halt, Menu, Orchestrator, Ruling};
 pub(crate) use state::{Journey, Phase, Status};
 pub(crate) use ui::{Loader, Mark, Ui};

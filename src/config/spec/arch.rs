@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Spec {
     pub inspire: String,
+    #[serde(deserialize_with = "Spec::de_stage")]
+    pub stage: String,
     pub description: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub ignore: Vec<String>,

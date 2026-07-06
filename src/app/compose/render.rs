@@ -51,6 +51,16 @@ impl Compose {
 
     }
 
+    pub(super) fn stage_policy ( cfg: &Config ) -> &'static str {
+
+        match cfg.spec.stage.trim() {
+            "live"    => P::STAGE_LIVE,
+            "staging" => P::STAGE_STAGING,
+            _         => P::STAGE_DEV,
+        }
+
+    }
+
     pub(super) fn author_policy ( cfg: &Config ) -> String {
 
         let opt = &cfg.option;

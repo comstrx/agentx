@@ -15,7 +15,7 @@ impl Project {
         let spec = document.project;
         let context = Self::discover(&paths, &spec);
 
-        Ok(Config { root: root.to_path_buf(), spec, option: document.option, gate: document.gate, agent: document.agent, paths, context, claude: document.claude, codex: document.codex })
+        Ok(Config { root: root.to_path_buf(), spec, option: document.option, gate: document.gate, agent: document.agent, paths, context, claude: document.claude, codex: document.codex, force: false })
 
     }
 

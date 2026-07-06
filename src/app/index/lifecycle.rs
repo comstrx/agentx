@@ -5,7 +5,7 @@ use nix::sys::signal::{Signal, killpg};
 use nix::unistd::Pid;
 
 use crate::config::{Paths, Spec, Train};
-use crate::config::base::consts::{CACHE_DIR, DOCS_DIR, RUN_LOG, TOOL};
+use crate::config::base::consts::{BUSY_LABEL, CACHE_DIR, DOCS_DIR, RUN_LOG, TOOL};
 use crate::core::error::AppResult;
 use crate::core::fs::{File, Path};
 use crate::core::proc::Proc;
@@ -26,7 +26,7 @@ impl App {
 
         Self::guard_signals();
 
-        Self::init(&root, flags)?;
+        Self::init_stage(&root, flags)?;
         Self::autofill(&paths)?;
 
         if !flags.ignore.is_empty() || !flags.include.is_empty() {
@@ -49,18 +49,19 @@ impl App {
 
         }
 
-        let config = Project::assemble(&root)?;
+        let mut config = Project::assemble(&root)?;
+        config.force = flags.force || !Self::interactive();
 
         Self::warn_unmatched(&config.paths.docs, &root);
         Self::warn_training(&config.spec.inspire);
 
         Self::ensure_agents(&config)?;
 
-        Self::engage(&paths)?;
+        Self::claim(&paths)?;
 
         let mut orchestrator = Orchestrator::new(config);
 
-        Ui::loading("orchestrating");
+        Ui::loading(BUSY_LABEL);
 
         let result = orchestrator.run();
 
@@ -68,8 +69,9 @@ impl App {
         let clean = completed && orchestrator.journey.blocked.is_empty();
         let blocked = orchestrator.journey.blocked.join(", ");
 
+        let unbound = orchestrator.cfg.spec.inspire.trim().is_empty();
         let do_train = clean && orchestrator.cfg.option.train;
-        let do_clear = clean && orchestrator.cfg.option.clear;
+        let do_clear = clean && orchestrator.cfg.option.clear && !( do_train && unbound );
 
         let trained = if do_train { orchestrator.run_train(true) } else { Ok(()) };
 
@@ -83,6 +85,16 @@ impl App {
             trained?;
 
             if do_clear { Project::clear(&paths); }
+
+            if do_train && unbound {
+
+                Ui::warn(&format!("run NOT recorded — no inspiration is bound; {CACHE_DIR} kept so the reports survive"));
+                Ui::detail("record", &format!("`{TOOL} inspire <name|N>` to bind, then `{TOOL} train` · `{TOOL} clear` when done"));
+                Ui::blank();
+
+                return result;
+
+            }
 
             match ( do_train, do_clear ) {
                 ( true, true )  => Ui::ok(&format!("trained & cleared — recorded to the training center, {CACHE_DIR} reset to a clean slate (layout kept)")),
@@ -156,6 +168,7 @@ impl App {
 
         if !Self::is_running(&paths) {
 
+            Self::sweep_workers(&paths);
             File::remove(&paths.active);
             File::remove(&paths.pid);
             Ui::info("nothing is running — no cycle to stop");
@@ -187,6 +200,7 @@ impl App {
 
         }
 
+        Self::sweep_workers(paths);
         File::remove(&paths.active);
         File::remove(&paths.pid);
         Self::mark(paths, Status::Stopped);
@@ -197,7 +211,7 @@ impl App {
 
         for pid_file in [&paths.active, &paths.pid] {
 
-            if let Some(pid) = Proc::read_pid(pid_file) && Proc::is_alive(pid) {
+            if let Some(pid) = Proc::read_pid(pid_file) && Proc::is_alive(pid) && Proc::leads(pid) {
 
                 let _ = killpg(Pid::from_raw(pid), sig);
 
@@ -267,6 +281,11 @@ impl App {
 
             Ui::step("a run is active — stopping it first");
             Self::terminate(&paths);
+
+        }
+        else {
+
+            Self::sweep_workers(&paths);
 
         }
 

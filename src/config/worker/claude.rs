@@ -18,7 +18,7 @@ impl Claude {
 
     }
 
-    fn open ( &self, cwd: &StdPath, pid_file: Option<&StdPath> ) -> AppResult<Stream> {
+    fn open ( &self, cwd: &StdPath, pid_file: Option<&StdPath>, registry: Option<&StdPath> ) -> AppResult<Stream> {
 
         let mut command = Command::new("claude");
 
@@ -35,14 +35,17 @@ impl Claude {
 
         }
 
-        match pid_file {
-            Some(path) => {
+        let record = |pid: i32| {
 
-                let record = |pid: i32| { let _ = File::write(path, &pid.to_string()); };
-                Proc::stream(command, Some(&record as &dyn Fn(i32)))
+            if let Some(path) = pid_file { let _ = File::write(path, &pid.to_string()); }
 
-            }
-            None => Proc::stream(command, None),
+            if let Some(ledger) = registry { let _ = File::append(ledger, &format!("{pid}\n")); }
+
+        };
+
+        match pid_file.is_some() || registry.is_some() {
+            true => Proc::stream(command, Some(&record as &dyn Fn(i32))),
+            false => Proc::stream(command, None),
         }
 
     }
@@ -125,11 +128,11 @@ impl Backend for Claude {
 
     }
 
-    fn turn ( &mut self, prompt: &str, cwd: &StdPath, timeout: u64, pid_file: Option<&StdPath> ) -> AppResult<String> {
+    fn turn ( &mut self, prompt: &str, cwd: &StdPath, timeout: u64, pid_file: Option<&StdPath>, registry: Option<&StdPath> ) -> AppResult<String> {
 
         if self.stream.is_none() {
 
-            self.stream = Some(self.open(cwd, pid_file)?);
+            self.stream = Some(self.open(cwd, pid_file, registry)?);
 
         }
 

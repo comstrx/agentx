@@ -1,7 +1,7 @@
 use std::path::{Path as StdPath, PathBuf};
 use include_dir::{Dir as Embedded, DirEntry, include_dir};
 
-use crate::core::error::AppResult;
+use crate::core::error::{AppError, AppResult};
 use crate::core::env::Env;
 use crate::core::fs::{Dir, File};
 use crate::config::base::consts::{BASE_DIR, CACHE_DIR, HISTORY_DIR, PROJECT_DIR};
@@ -13,13 +13,13 @@ impl Train {
 
     pub fn init () -> AppResult<()> {
 
-        Self::extract(&INCLUDE, &Self::store())
+        Self::extract(&INCLUDE, &Self::rooted()?)
 
     }
 
     pub fn reset () -> AppResult<()> {
 
-        Dir::remove(&Self::store());
+        Dir::remove(&Self::rooted()?);
 
         Self::init()
 
@@ -27,7 +27,7 @@ impl Train {
 
     pub fn sync () -> AppResult<()> {
 
-        Self::resync(&INCLUDE, &Self::store())
+        Self::resync(&INCLUDE, &Self::rooted()?)
 
     }
 
@@ -79,9 +79,18 @@ impl Train {
 
     }
 
+    fn rooted () -> AppResult<PathBuf> {
+
+        match Env::home() {
+            Some(home) => Ok(home.join(CACHE_DIR)),
+            None => Err(AppError::message(format!("HOME is not set — the training center lives under ~/{CACHE_DIR} and has no safe fallback; set HOME and retry"))),
+        }
+
+    }
+
     fn store () -> PathBuf {
 
-        Env::home().unwrap_or_else(Env::temp_dir).join(CACHE_DIR)
+        Self::rooted().unwrap_or_else(|_| PathBuf::from(".").join(CACHE_DIR))
 
     }
 

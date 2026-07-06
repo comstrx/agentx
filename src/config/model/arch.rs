@@ -24,4 +24,5 @@ pub struct Config {
     pub context: Context,
     pub claude: Engine,
     pub codex: Engine,
+    pub force: bool,
 }

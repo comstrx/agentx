@@ -1,9 +1,9 @@
 use std::path::{Path as StdPath, PathBuf};
 
 use crate::config::base::consts::{
-    ACTIVE_FILE, AUDIT_DIR, CACHE_DIR, CONFIGS_DIR, CONFIG_FILE, DOCS_DIR, DRAIN_FILE, GATE_LOG, INBOX_DIR,
-    MANAGER_DIR, MD_EXT, PID_FILE, REPORTS_DIR, REVIEW_SUFFIX, ROUNDS_DIR,
-    SESSIONS_FILE, STATE_FILE, TASKS_DIR,
+    ACTIVE_FILE, AUDIT_DIR, CACHE_DIR, CONFIGS_DIR, CONFIG_FILE, CONFLICT_FILE, DOCS_DIR, DRAIN_FILE, GATE_LOG,
+    INBOX_DIR, MANAGER_DIR, MD_EXT, PID_FILE, REPORTS_DIR, REVIEW_SUFFIX, ROUNDS_DIR,
+    SESSIONS_FILE, STATE_FILE, TASKS_DIR, WORKERS_FILE,
 };
 use crate::core::fs::Dir;
 use super::arch::Paths;
@@ -25,9 +25,12 @@ impl Paths {
             state: configs.join(STATE_FILE),
             pid: configs.join(PID_FILE),
             active: configs.join(ACTIVE_FILE),
+            workers: configs.join(WORKERS_FILE),
             sessions: configs.join(SESSIONS_FILE),
             drain: configs.join(DRAIN_FILE),
             gate_log: configs.join(GATE_LOG),
+
+            conflict: configs.join(format!("{CONFLICT_FILE}.{MD_EXT}")),
 
             inbox: cache.join(INBOX_DIR),
             tasks: cache.join(TASKS_DIR),

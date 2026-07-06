@@ -67,6 +67,15 @@ impl App {
 
         }
 
+        if !config.gate.command.trim().is_empty() {
+
+            let ( found, detail ) = Self::probe("sh");
+
+            if !found { all_ok = false; Ui::cross(0, &format!("{:<8}  {detail}", "sh")); }
+            else { Ui::tick(0, &format!("{:<8}  {detail}", "sh")); }
+
+        }
+
         let mut broken: Vec<String> = Vec::new();
 
         for agent in &backends {
@@ -94,15 +103,6 @@ impl App {
 
                 }
             }
-
-        }
-
-        if !config.gate.command.trim().is_empty() {
-
-            let ( found, detail ) = Self::probe("sh");
-
-            if !found { all_ok = false; Ui::cross(0, &format!("{:<8}  {detail}", "sh")); }
-            else { Ui::tick(0, &format!("{:<8}  {detail}", "sh")); }
 
         }
 

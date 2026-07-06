@@ -15,6 +15,7 @@ pub struct Orchestrator {
 pub enum Halt {
     Drained,
     Stopped,
+    Paused,
     Failed(AppError),
 }
 
@@ -23,6 +24,23 @@ pub enum Gate {
     Green,
     Red,
     Timeout,
+    Broken,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Ruling {
+    Proceed,
+    Fix,
+    Stop,
+}
+
+pub(crate) struct Menu {
+    pub paused: String,
+    pub headline: String,
+    pub proceed: String,
+    pub fix: String,
+    pub stop: String,
+    pub note: String,
 }
 
 pub type Flow<T> = Result<T, Halt>;

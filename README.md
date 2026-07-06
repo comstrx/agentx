@@ -52,6 +52,16 @@ engineering philosophy:
   into its own clean, ordered backlog first — taking real ownership of intent — then
   judges every round against the contracts with authority: it sends work back for
   *drifting from the intent*, not only for a bug.
+- **It objects before it guesses.** After the whole team is primed, intake runs three
+  checkpoints — the project foundation (is there really something to build on?), the
+  requirements (any breaking conflict?), then the quality gate (do its tools and
+  scripts really exist and cover the pillars?). Each real flaw becomes a brutally
+  short objection right in your terminal, and you rule on the spot: Enter continues
+  (conflicts become visible `Assumption:` lines, never silent guesses), **fix** hands
+  it to the manager — he repairs the foundation, resolves the requirements with
+  visible `Decision:` lines, or composes the corrected gate, then the check re-runs —
+  or stop resumably and fix it yourself. Clean ground feels nothing, and `-f/--force`,
+  CI, or a background run never pause — the dialogue is a terminal-only privilege.
 - **Human-led, one requirement at a time.** You write small, sharp requirements;
   AgentX takes each from A to Z; you review the result and, on any gap, write the next
   one. You stay in command of the architecture — the agents are the execution army.
@@ -113,13 +123,14 @@ agentx start --bg                            # or detached — drive it with sta
 | `include <PATH>…` | force paths into classification, overriding ignore (persisted) |
 | `refresh` | reset the ignore/include lists and re-classify |
 | `inspire [NAME\|N]` | bind or switch the project's inspiration node — by name/number, or from the menu |
-| `gate [COMMAND]` | set or switch the quality-gate command — as an argument, or typed at a prompt |
+| `gate [COMMAND]` | set or switch the quality-gate command — as an argument, or typed at a prompt; `--show` prints the current gate and exits |
 | `info` | read-only snapshot: config, pids, paths, classification, journey, sessions |
 | `status` | one snapshot: state, per-seat engines, journey progress, live-log tail, a numbers-only stats block, and a closing "Now · what's happening" panel |
 | `watch` | the same status as a live dashboard — full-screen refresh every second until you exit (Ctrl+C) |
 | `doctor` | check every required agent CLI + tool is installed and runnable |
+| `compose` | print the **exact assembled prompts** the agents receive, as titled blocks with real project values — zero agent calls; filter with `--role`/`--phase` down to a single block or fragment, `--out FILE` writes instead of printing |
 | `sync` | re-extract the shipped knowledge nodes, **keep** learned history |
-| `reset` | wipe and re-seed the training center from the binary — asks first when learned reports exist (`-y` skips) |
+| `reset` | wipe and re-seed the training center from the binary — always asks first on a terminal; headless needs `-y` |
 
 ## Flags
 
@@ -139,6 +150,7 @@ agentx start --bg                            # or detached — drive it with sta
 | `--doc-blocks <BOOL>` | init · new · start · restart | document every public item in the native doc format |
 | `--doc-contracts <BOOL>` | init · new · start · restart | document non-obvious units that don't return explicit types |
 | `-y, --yes` | any | assume yes on every confirmation prompt (e.g. `reset`) — for CI and scripts |
+| `-f, --force` | start · restart | never pause intake on an objection — conflicts resolve to the narrowest assumption, recorded as a visible `Assumption:` line in the backlog (implied when headless: CI, pipes, `--bg`) |
 | `-b, --background` (`--bg`) | new · start · restart | run detached; drive with `status`/`drain`/`stop` |
 | `--no-train` | init · new · start · restart | don't auto-record the finished run into the training center (sets `[option].train = false`) |
 | `--no-clear` | init · new · start · restart | don't auto-clear `.agentx/` when the run finishes (sets `[option].clear = false`) |
@@ -159,8 +171,8 @@ agentx man > /usr/local/share/man/man1/agentx.1
 
 The philosophy above, made concrete — every phase is a relay of warm, contract-bound agents the manager rules on:
 
-- **Prime & discover** — the manager trains first, then — if the project kind or gate isn't set — matches the project to a curated node (or coins a fresh history line) and composes the gate (`check` baseline plus the `lint`/`format`/`tests` pillars you switched on). If that binds a kind, its composed knowledge is folded in and only THEN is the rest of the team primed — with that knowledge in their study lists, so no agent ever trains blind. A final active-recall pass confirms the bar.
-- **Intake** — the manager turns your requirements into an ordered, de-duplicated backlog.
+- **Prime** — the manager trains and confirms FIRST, alone.
+- **Intake** — still before anyone else is primed, the manager verifies the ground in FOUR checkpoints: the project tree, the training-center binding, the quality gate, and the requirements — each with the objection dialogue (continue / fix / stop), and each re-armed on EVERY `start`, resumes included. There is no silent auto-discovery any more: choosing **fix** is what makes the manager classify the project into the center or compose the gate (`check` baseline plus the `lint`/`format`/`tests` pillars you switched on). Only after the checks pass is the team primed, and only after the team is primed does the manager write the final ordered backlog (skipped when resuming mid-journey). A final active-recall pass confirms the bar.
 - **Requires** — architects write ordered task contracts: path, interface, invariants, acceptance criteria.
 - **Tasks** — executors build them one at a time; the gate runs after every turn (≤ `max_fixes` repairs; a gate still red after the last repair stops the run with a clear, resumable error).
 - **Audits** — when `audits` is on, a council of auditors examines the WHOLE built system for integration, layering, abstraction, providers/adaptors, dangerous dependencies, performance, and secrets, and raises each real defect as an explained remediation task; the executors build those, then it audits again — up to `max_audits` rounds, or until the system is clean.
@@ -236,11 +248,11 @@ flags any dependency that points at a missing node.
 
 | table | keys (defaults) |
 |---|---|
-| `[project]` | `inspire` · `description` |
+| `[project]` | `inspire` · `stage` (`dev` \| `staging` \| `live`, default `dev` — the blast-radius contract: `dev` = break and reshape freely, `live` = published interfaces are promises, data stores untouchable without an explicit requirement) · `description` |
 | `[option]` | `lint` · `format` · `audits` · `tests` · `fuzzes` · `benches` · `examples` · `comments` · `doc_blocks` · `doc_contracts` (default off) · `train` · `clear` (default on) — each a flexible bool. `lint`/`format`/`tests` add gate pillars; `audits`/`tests`/`benches`/`examples`/`fuzzes` switch their phase on; `comments`/`doc_blocks`/`doc_contracts` shape how executors document; `train`/`clear` toggle the post-run auto-record and auto-clear (disable via `--no-train`/`--no-clear`) |
 | `[gate]` | `command` · `timeout` (1000s) |
 | `[agent]` | `max_audits` (3) · `max_rounds` (3) · `max_fixes` (3) · `timeout` (10000s) · `manager` (exactly one) · per-phase rosters `requires` · `tasks` · `audits` · `tests` · `benches` · `examples` · `fuzzes` |
-| `[claude]` / `[codex]` | `model` · `effort` (scaffolded: claude `claude-opus-4-8`/`max` · codex `gpt-5.5`/`high`; empty = CLI default) |
+| `[claude]` / `[codex]` | `model` · `effort` — optional overrides for bare seats; absent = built-in defaults (claude `claude-opus-4-8`/`xhigh` · codex `gpt-5.5`/`high`). Not scaffolded — add them only when you want one place to steer every bare seat |
 
 Each phase has its own roster. A roster entry is either a bare backend name (`"claude"`) or an inline table `{ agent = "claude", model = "fable-5", effort = "max" }`; a roster field is a single entry or a list of them. `manager` must resolve to exactly one entry. Entries expand to `claude_1 claude_2 codex_1 …` (backend + ordinal), each a persistent, independently-briefed agent. `init` scaffolds every seat explicit — `{ agent, model, effort }`, one architect — so the file teaches its own syntax; edit freely.
 
@@ -266,7 +278,7 @@ fn main() -> agentx::AppResult<()> {
     App::start(Path::new("."), &Flags::default())
 }
 // App::{init, create, start, restart, stop, drain, train, clear, ignore, include,
-//       refresh, inspire, gate, info, status, watch, doctor, sync, reset} — the full CLI surface.
+//       refresh, inspire, gate, info, status, watch, doctor, compose, sync, reset} — the full CLI surface.
 ```
 
 ## Platforms

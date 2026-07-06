@@ -1,5 +1,21 @@
-use super::arch::{Agent, Gate, Member, Options, Seats};
-use crate::config::base::consts::{AGENT_TIMEOUT, DEFAULT_MODEL, GATE_TIMEOUT, MANAGER_MODEL, MAX_AUDITS, MAX_FIXES, MAX_ROUNDS};
+use super::arch::{Agent, Gate, Member, Options, Seats, Spec};
+use crate::config::base::consts::{AGENT_TIMEOUT, DEFAULT_MODEL, DEFAULT_STAGE, GATE_TIMEOUT, MANAGER_MODEL, MAX_AUDITS, MAX_FIXES, MAX_ROUNDS};
+
+impl Default for Spec {
+
+    fn default () -> Self {
+
+        Self {
+            inspire: String::new(),
+            stage: DEFAULT_STAGE.to_string(),
+            description: String::new(),
+            ignore: Vec::new(),
+            include: Vec::new(),
+        }
+
+    }
+
+}
 
 impl Default for Options {
 

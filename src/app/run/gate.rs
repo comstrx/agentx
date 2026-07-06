@@ -48,6 +48,22 @@ impl Orchestrator {
 
     }
 
+    pub(super) fn gate_broken ( &self, agent: &str, task: Option<&StdPath> ) -> Halt {
+
+        let unit = match task {
+            Some(path) => format!("task {}", Path::stem_of(path)),
+            None => "the current task".to_string(),
+        };
+
+        Halt::Failed(AppError::message(format!(
+            "the gate command ITSELF failed to run on {unit} ({agent}) — exit 126/127: the program is missing or not \
+             executable, so this is a broken gate, NOT a code defect, and no repair turn can clear it. Fix \
+             [gate].command in {CONFIG_FILE} (`{TOOL} gate '<command>'`), then run `{TOOL} start` to resume exactly \
+             here — nothing is lost."
+        )))
+
+    }
+
     pub(super) fn run_gate ( &self ) -> Flow<Gate> {
 
         let gate = &self.cfg.gate;
@@ -64,6 +80,8 @@ impl Orchestrator {
         File::write(log, &format!("{}{}", output.stdout, output.stderr))?;
 
         if output.timed_out { return Ok(Gate::Timeout); }
+
+        if output.code == 126 || output.code == 127 { return Ok(Gate::Broken); }
 
         Ok(if output.code == 0 { Gate::Green } else { Gate::Red })
 
@@ -90,6 +108,7 @@ impl Orchestrator {
             Gate::Green   => Ui::done(depth, Mark::Cool, "gate green", started),
             Gate::Red     => Ui::done(depth, Mark::Rage, &format!("gate red — see {log}"), started),
             Gate::Timeout => Ui::done(depth, Mark::Warn, &format!("gate timed out after {}s — environment slowness, not a code defect", self.cfg.gate.timeout), started),
+            Gate::Broken  => Ui::done(depth, Mark::Rage, &format!("the gate command itself failed to run (missing or not executable) — see {log}"), started),
         }
 
         Ok(result)

@@ -1,7 +1,7 @@
 use std::{thread, io::Read, path::Path as StdPath, time::{Duration, Instant}, process::{Command, Stdio}, os::unix::process::CommandExt};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
-use nix::{unistd::Pid, sys::signal::{kill, killpg, Signal}};
+use nix::{unistd::{Pid, getpgid}, sys::signal::{kill, killpg, Signal}};
 
 use crate::core::error::AppResult;
 use crate::core::fs::File;
@@ -192,6 +192,12 @@ impl Proc {
     pub fn is_alive ( pid: i32 ) -> bool {
 
         kill(Pid::from_raw(pid), None).is_ok()
+
+    }
+
+    pub fn leads ( pid: i32 ) -> bool {
+
+        getpgid(Some(Pid::from_raw(pid))).map(|group| group.as_raw() == pid).unwrap_or(false)
 
     }
 

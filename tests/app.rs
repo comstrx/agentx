@@ -61,3 +61,44 @@ fn drain_is_a_noop_when_idle () {
     fs::remove_dir_all(&dir).ok();
 
 }
+
+#[test]
+fn compose_requires_a_config () {
+
+    let dir = temp("compose");
+
+    let error = App::compose(&dir, None, None, None, false).unwrap_err().to_string();
+
+    assert!(error.contains("Agentx.toml"), "unexpected error: {error}");
+
+    fs::remove_dir_all(&dir).ok();
+
+}
+
+#[test]
+fn compose_rejects_an_unknown_role () {
+
+    let dir = temp("compose-role");
+    fs::write(dir.join("Agentx.toml"), "").unwrap();
+
+    let error = App::compose(&dir, Some("wizard"), None, None, false).unwrap_err().to_string();
+
+    assert!(error.contains("unknown role"), "unexpected error: {error}");
+
+    fs::remove_dir_all(&dir).ok();
+
+}
+
+#[test]
+fn compose_rejects_manager_turns_for_workers () {
+
+    let dir = temp("compose-guard");
+    fs::write(dir.join("Agentx.toml"), "").unwrap();
+
+    let error = App::compose(&dir, Some("arch"), Some("discover"), None, false).unwrap_err().to_string();
+
+    assert!(error.contains("manager"), "unexpected error: {error}");
+
+    fs::remove_dir_all(&dir).ok();
+
+}

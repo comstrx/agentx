@@ -1,9 +1,27 @@
 use std::path::Path as StdPath;
 
 use crate::config::{Config, base::prompts as P};
-use crate::app::Compose;
+use crate::app::{Compose, Journey};
 
 impl Compose {
+
+    pub(crate) fn work ( cfg: &Config, journey: &Journey, phase: &str, agent: &str, task: Option<&StdPath>, gate_failed: bool, has_review: bool ) -> String {
+
+        match phase {
+            "requires" => Self::architect(cfg, agent, has_review),
+            "tasks" => Self::executor(cfg, agent, task.unwrap_or_else(|| StdPath::new("")), gate_failed, has_review),
+            "audits" => Self::auditor(cfg, agent, has_review),
+            "tests" | "benches" | "examples" | "fuzzes" => {
+
+                let shipped: Vec<String> = journey.task_status.iter().filter(|( _, status )| status.as_str() == "shipped").map(|( name, _ )| name.clone()).collect();
+
+                Self::producer(cfg, phase, agent, &shipped, gate_failed, has_review)
+
+            },
+            _ => String::new(),
+        }
+
+    }
 
     pub(crate) fn architect ( cfg: &Config, agent: &str, has_review: bool ) -> String {
 
@@ -28,11 +46,17 @@ impl Compose {
 
         let mut parts = vec![P::TASKS_WORK.to_string()];
 
-        if gate_failed { parts.push(P::TASKS_GATE_FAIL.to_string()); }
+        if gate_failed {
+
+            parts.push(P::TASKS_GATE_FAIL.to_string());
+            parts.push(P::DEBUG_DISCIPLINE.to_string());
+
+        }
 
         if has_review { parts.push(P::REVIEW_HANDOFF.to_string()); }
 
-        parts.push(P::TASKS_REMEDIATION.to_string());
+        if cfg.option.audits { parts.push(P::TASKS_REMEDIATION.to_string()); }
+
         parts.push(Self::author_policy(cfg));
         parts.push(P::OWNERSHIP.to_string());
         parts.push(P::WORK_DISCIPLINE.to_string());
@@ -70,7 +94,12 @@ impl Compose {
 
         let mut parts = vec![P::PRODUCE_WORK.to_string()];
 
-        if gate_failed { parts.push(P::PRODUCE_GATE_FAIL.to_string()); }
+        if gate_failed {
+
+            parts.push(P::PRODUCE_GATE_FAIL.to_string());
+            parts.push(P::DEBUG_DISCIPLINE.to_string());
+
+        }
 
         if has_review { parts.push(P::REVIEW_HANDOFF.to_string()); }
 

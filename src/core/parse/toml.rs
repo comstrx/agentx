@@ -24,4 +24,10 @@ impl Toml {
 
     }
 
+    pub fn quote ( value: &str ) -> String {
+
+        ::toml::Value::from(value).to_string()
+
+    }
+
 }

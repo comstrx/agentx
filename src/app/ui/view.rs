@@ -75,6 +75,24 @@ impl Ui {
 
     }
 
+    pub(crate) fn strong ( text: &str ) -> String {
+
+        Self::paint(text, Self::accent())
+
+    }
+
+    pub(crate) fn keys () -> &'static str {
+
+        if Term::icons() { "↑/↓ move" } else { "j/k move" }
+
+    }
+
+    pub(crate) fn dim ( text: &str ) -> String {
+
+        Self::paint(text, Self::muted())
+
+    }
+
     pub fn role ( label: &str, members: &str ) {
 
         Self::line(&format!("      {}  {}{}", Self::paint(Self::pick(GLYPH_INFO), Self::accent()), Self::paint(&format!("{label:<18}"), Self::muted()), Self::paint(members, Self::good())));

@@ -30,6 +30,13 @@ impl Orchestrator {
                 Ok(())
 
             }
+            Err(Halt::Paused) => {
+
+                Ui::blank();
+
+                Ok(())
+
+            }
             Err(Halt::Drained) => {
 
                 Ui::blank();
@@ -93,7 +100,10 @@ impl Orchestrator {
         Ui::field("project", &Path::display(&self.cfg.root));
         Ui::field("inspire", &kind);
 
-        if !self.cfg.gate.command.is_empty() { Ui::field("gate", &self.cfg.gate.command); }
+        match self.cfg.gate.command.is_empty() {
+            false => Ui::field("gate", &self.cfg.gate.command),
+            true => Ui::field("gate", "(none — every turn will ship UNVERIFIED unless the manager composes one)"),
+        }
 
         Ui::field("team", "");
         Ui::role("manager", self.cfg.manager());

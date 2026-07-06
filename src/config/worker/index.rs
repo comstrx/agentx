@@ -29,7 +29,7 @@ impl Worker {
 
     pub fn new ( model: &str ) -> Self {
 
-        Self { backend: Self::make(model), cwd: PathBuf::from("."), timeout: 0, pid_file: None }
+        Self { backend: Self::make(model), cwd: PathBuf::from("."), timeout: 0, pid_file: None, registry: None }
 
     }
 
@@ -73,6 +73,14 @@ impl Worker {
 
     }
 
+    pub fn registry ( &mut self, path: &StdPath ) -> &mut Self {
+
+        self.registry = Some(path.to_path_buf());
+
+        self
+
+    }
+
     pub fn set_session ( &mut self, id: &str ) -> &mut Self {
 
         self.backend.set_session(id);
@@ -100,8 +108,9 @@ impl Worker {
         let cwd = self.cwd.clone();
         let timeout = self.timeout;
         let pid_file = self.pid_file.clone();
+        let registry = self.registry.clone();
 
-        self.backend.turn(prompt, &cwd, timeout, pid_file.as_deref())
+        self.backend.turn(prompt, &cwd, timeout, pid_file.as_deref(), registry.as_deref())
 
     }
 

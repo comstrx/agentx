@@ -7,7 +7,7 @@ pub trait Backend {
 
     fn configure ( &mut self, model: &str, effort: &str );
 
-    fn turn ( &mut self, prompt: &str, cwd: &StdPath, timeout: u64, pid_file: Option<&StdPath> ) -> AppResult<String>;
+    fn turn ( &mut self, prompt: &str, cwd: &StdPath, timeout: u64, pid_file: Option<&StdPath>, registry: Option<&StdPath> ) -> AppResult<String>;
 
     fn set_session ( &mut self, id: &str );
 
@@ -22,6 +22,7 @@ pub struct Worker {
     pub(crate) cwd:      PathBuf,
     pub(crate) timeout:  u64,
     pub(crate) pid_file: Option<PathBuf>,
+    pub(crate) registry: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

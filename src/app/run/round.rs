@@ -106,6 +106,7 @@ impl Orchestrator {
                 match gate {
                     Gate::Green                   => gate_ok = true,
                     Gate::Timeout                 => return Err(self.gate_timeout(agent, task)),
+                    Gate::Broken                  => return Err(self.gate_broken(agent, task)),
                     Gate::Red if phase == "tasks" => return Err(self.gate_failure(agent, task)),
                     Gate::Red => {
 
@@ -134,19 +135,7 @@ impl Orchestrator {
 
     pub(super) fn build_prompt ( &self, phase: &str, agent: &str, task: Option<&StdPath>, gate_failed: bool, has_review: bool ) -> String {
 
-        match phase {
-            "requires" => Compose::architect(&self.cfg, agent, has_review),
-            "tasks" => Compose::executor(&self.cfg, agent, task.unwrap_or_else(|| StdPath::new("")), gate_failed, has_review),
-            "audits" => Compose::auditor(&self.cfg, agent, has_review),
-            "tests" | "benches" | "examples" | "fuzzes" => {
-
-                let shipped: Vec<String> = self.journey.task_status.iter().filter(|( _, status )| status.as_str() == "shipped").map(|( name, _ )| name.clone()).collect();
-
-                Compose::producer(&self.cfg, phase, agent, &shipped, gate_failed, has_review)
-
-            },
-            _ => String::new(),
-        }
+        Compose::work(&self.cfg, &self.journey, phase, agent, task, gate_failed, has_review)
 
     }
 

@@ -9,7 +9,7 @@ impl Orchestrator {
         if self.journey.is_resumable() {
 
             Ui::blank();
-            Ui::step(&format!("resuming journey {} — fresh sessions, re-priming the team, continuing from phase {:?} round {}", self.journey.journey_id, self.journey.phase, self.journey.current_round));
+            Ui::step(&format!("resuming journey {} — fresh sessions: the manager re-verifies the ground, the team re-primes, then work continues from phase {:?}", self.journey.journey_id, self.journey.phase));
 
             self.sessions.clear();
             self.live.clear();
@@ -35,9 +35,13 @@ impl Orchestrator {
 
         }
 
-        self.prime()?;
+        self.prime_manager()?;
 
-        self.intake()?;
+        let ruling = self.intake()?;
+
+        self.prime_team()?;
+
+        self.convert(ruling)?;
 
         if self.journey.phase <= Phase::Requires { self.phase_requires()?; }
 

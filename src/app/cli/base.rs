@@ -40,6 +40,8 @@ impl Flags<'_> {
 
         if self.yes { command.arg("--yes"); }
 
+        if self.force { command.arg("--force"); }
+
         if self.no_train { command.arg("--no-train"); }
 
         if self.no_clear { command.arg("--no-clear"); }
@@ -77,6 +79,7 @@ impl Cli {
             doc_blocks: cli.doc_blocks.as_deref(),
             doc_contracts: cli.doc_contracts.as_deref(),
             yes: cli.yes,
+            force: cli.force,
             background: cli.background,
             no_train: cli.no_train,
             no_clear: cli.no_clear,
@@ -97,12 +100,13 @@ impl Cli {
             Command::Ignore { paths }            => App::ignore(&dir, &paths),
             Command::Include { paths }           => App::include(&dir, &paths),
             Command::Refresh { ignore, include } => App::refresh(&dir, &ignore, &include),
-            Command::Inspire { name }            => App::inspire(&dir, name.as_deref()),
-            Command::Gate { command }            => App::gate(&dir, command.as_deref()),
+            Command::Inspire { name, show }      => App::inspire(&dir, name.as_deref(), show),
+            Command::Gate { command, show }      => App::gate(&dir, command.as_deref(), show),
             Command::Info                        => App::info(&dir),
             Command::Status                      => App::status(&dir),
             Command::Watch                       => App::watch(&dir),
             Command::Doctor                      => App::doctor(&dir),
+            Command::Compose { role, phase, out } => App::compose(&dir, role.as_deref(), phase.as_deref(), out.as_deref(), cli.force),
             Command::Sync                        => App::sync(),
             Command::Reset                       => App::reset(cli.yes),
             Command::Completions { shell }       => Self::completions(shell),

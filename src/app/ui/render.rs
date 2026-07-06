@@ -8,6 +8,7 @@ use parking_lot::Mutex;
 
 use crate::config::base::consts::{BUSY_WIDTH, FRAMES, FRAMES_PLAIN, GLYPH_BEAT, GLYPH_COOL, GLYPH_FAIL, GLYPH_INFO, GLYPH_OK, GLYPH_PARTY, GLYPH_RAGE, GLYPH_STEP, GLYPH_STUDY, GLYPH_THINK, GLYPH_WARN, TICK_MS};
 use crate::core::term::Term;
+use crate::core::text::Text;
 use crate::app::{Loader, Mark, Ui};
 
 static LOADER: OnceLock<Loader> = OnceLock::new();
@@ -224,7 +225,7 @@ impl Ui {
 
         if let Some(loader) = LOADER.get() && loader.active.load(Ordering::Relaxed) {
 
-            *loader.label.lock() = label.to_string();
+            *loader.label.lock() = Text::plain(label);
             *loader.start.lock() = Instant::now();
 
         }
@@ -234,8 +235,8 @@ impl Ui {
     fn clock ( secs: u64 ) -> String {
 
         match secs {
-            s if s >= 3600 => format!("{}h{:02}m{:02}s", s / 3600, ( s % 3600 ) / 60, s % 60),
-            s if s >= 60   => format!("{}m{:02}s", s / 60, s % 60),
+            s if s >= 3600 => format!("{}h {}m {}s", s / 3600, ( s % 3600 ) / 60, s % 60),
+            s if s >= 60   => format!("{}m {}s", s / 60, s % 60),
             s              => format!("{s}s"),
         }
 
@@ -311,9 +312,10 @@ impl Loader {
 
         if label.chars().count() <= BUSY_WIDTH { return label.to_string(); }
 
-        let head: String = label.chars().take(BUSY_WIDTH.saturating_sub(1)).collect();
+        let mark = if Term::icons() { "…" } else { "..." };
+        let head: String = label.chars().take(BUSY_WIDTH.saturating_sub(mark.chars().count())).collect();
 
-        format!("{}…", head.trim_end())
+        format!("{}{mark}", head.trim_end())
 
     }
 
