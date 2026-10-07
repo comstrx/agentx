@@ -55,17 +55,17 @@ pub const BAR_WIDTH: usize           = 18;
 pub const LOG_TAIL: usize            = 12;
 pub const BUSY_WIDTH: usize          = 56;
 
-pub const GLYPH_OK: (&str, &str)     = ( "✅", "[+]" );
+pub const GLYPH_OK: (&str, &str)     = ( "🟢", "[+]" );
 pub const GLYPH_FAIL: (&str, &str)   = ( "❌", "[x]" );
 pub const GLYPH_WARN: (&str, &str)   = ( "⚠️", "[!]" );
 pub const GLYPH_INFO: (&str, &str)   = ( "🔸", "[*]" );
 pub const GLYPH_STEP: (&str, &str)   = ( "👉", "[>]" );
 pub const GLYPH_BEAT: (&str, &str)   = ( "🔄", "[~]" );
-pub const GLYPH_COOL: (&str, &str)   = ( "😎", "[B]" );
+pub const GLYPH_COOL: (&str, &str)   = ( "🎉", "[B]" );
 pub const GLYPH_RAGE: (&str, &str)   = ( "😡", "[#]" );
 pub const GLYPH_THINK: (&str, &str)  = ( "🤔", "[?]" );
 pub const GLYPH_PARTY: (&str, &str)  = ( "🥳", "[o]" );
-pub const GLYPH_STUDY: (&str, &str)  = ( "⏳", "[s]" );
+pub const GLYPH_STUDY: (&str, &str)  = ( "⚪", "[s]" );
 pub const GLYPH_TITLE: (&str, &str)  = ( "✨", "**" );
 pub const GLYPH_ON: (&str, &str)     = ( "🟢", "(+)" );
 pub const GLYPH_OFF: (&str, &str)    = ( "⚪", "( )" );
@@ -94,11 +94,13 @@ pub const BUCKET_DIRS: [(&str, &[&str]); 7] = [
 pub const MAX_AUDITS: u32      = 3;
 pub const MAX_ROUNDS: u32      = 3;
 pub const MAX_FIXES: u32       = 3;
+
 pub const AGENT_RETRIES: u32   = 2;
 pub const BACKOFF_SHIFT: u32   = 4;
 pub const BACKOFF_CAP: u64     = 15;
 pub const POLL_MS: u64         = 100;
 pub const POLL_TICKS: u32      = 10;
+
 pub const PROBE_TIMEOUT: u64   = 15;
 pub const TURN_TIMEOUT: u64    = 30;
 pub const GATE_TIMEOUT: u64    = 1000;
@@ -107,8 +109,8 @@ pub const AGENT_TIMEOUT: u64   = 10000;
 pub const MANAGER_MODEL: &str  = "claude";
 pub const DEFAULT_MODEL: &str  = "claude";
 
-pub const DEFAULT_STAGE: &str        = "dev";
-pub const STAGES: [&str; 3]          = ["dev", "staging", "live"];
+pub const DEFAULT_STAGE: &str  = "dev";
+pub const STAGES: [&str; 3]    = ["dev", "staging", "live"];
 
 pub const CLAUDE_MODEL: &str   = "claude-opus-4-8";
 pub const CLAUDE_EFFORT: &str  = "xhigh";

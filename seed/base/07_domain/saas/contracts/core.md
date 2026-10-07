@@ -1,0 +1,12 @@
+# Core
+
+The universal multi-type core — one platform, many bookable/sellable types, zero forked systems.
+
+- **One `items` family, single-table:** all types share ONE table — generic columns, generic FKs (`item_id` self-parent), `type` + `subtype` discriminators — plus satellite tables for the 1-to-many (prices, availabilities, policies, features, locations). No type-specific columns named after one vertical; semantically-general fields (dates, price, capacity, status) serve every type's meaning of them.
+- **`type` is a lookup ROW, never a DB enum or a code branch:** a new vertical = a data row declaring its capabilities + a few fields — not a migration, not a module, not a fork. That is the entire commercial point; protect it.
+- **Branch on declared CAPABILITY, never on a type literal — the make-or-break law.** Core DNA knows nothing about any specific vertical: `item.has(capability)` ✅, `if type == 'hotel'` ❌. Capabilities are declared per type in the lookup (data). The audit is mechanical: a type-literal comparison in core code = the leak that rots the whole system — hunt it in review, count it as a defect.
+- **Additive-monotone growth:** every addition (type, field, use case, even a conditional) enters as an opt-in capability/extension that cannot degrade existing types. A genuine cross-cutting core change is rare, deliberate, and versioned — never disguised as a capability.
+- **Catalog uniform, fulfillment divergent:** all types share listing/review/media/vendor/payment DNA, but availability/order/fulfillment collapse into a handful of capability STRATEGIES (date-range, timed-slot, stock+shipping, instant-digital, gig-delivery, enrollment, application-processing) — one order pipeline resolving `capability → strategy`, never one order DNA with type branches.
+- **The data-not-code metric is the health check:** a new client need expressible as data (type row, feature flag, satellite row) = the model holds; the first need that demands a code branch = a signal the need belongs in an extension seam, not a trait `if`.
+- **The explicit trade-off, held with open eyes:** single-table moves per-type integrity from DB to app — per-type rules live in data-driven validation reading the type lookup; only universal rules (price ≥ 0, end > start) become DB constraints. Never encode a type-specific rule as a DB CHECK.
+- The failure mode is abstraction leak over time, multiplied by team size and by per-client special cases — the design does not defend itself; the discipline above does.

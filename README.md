@@ -288,7 +288,20 @@ calls (process groups, POSIX signals, `termios`) are isolated to
 `core/{proc,term}`, so a contained `#[cfg(windows)]` port is planned
 after the tool proves itself in production.
 
+## Community
+
+- [Issues](https://github.com/comstrx/agentx/issues)
+- [Discussions](https://github.com/comstrx/agentx/discussions)
+- [Contributing](https://github.com/comstrx/agentx/blob/main/CONTRIBUTING.md)
+- [Security](https://github.com/comstrx/agentx/blob/main/SECURITY.md)
+- [Support](https://github.com/comstrx/agentx/blob/main/SUPPORT.md)
+
 ## License
 
-**AGPL-3.0-only** — see [LICENSE](./LICENSE). Run a modified Agentx as a hosted
-service and you must offer users its source. For other terms, contact the author.
+<code>agentx</code> is dual-licensed under either
+[MIT](https://github.com/comstrx/agentx/blob/main/LICENSE-MIT) or
+[Apache-2.0](https://github.com/comstrx/agentx/blob/main/LICENSE-APACHE), at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in this work by you, as defined in the Apache-2.0 license, shall be
+dual-licensed as above, without any additional terms or conditions.

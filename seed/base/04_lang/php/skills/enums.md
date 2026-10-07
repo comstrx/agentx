@@ -1,0 +1,14 @@
+# Enums
+
+The closed set as a first-class citizen — vocabulary, behaviour, and schema from one declaration.
+
+- **Every closed set is a backed string enum:** statuses, stages, roles, types, setting keys, message catalogs, api codes. A string constant, a config list, or a bare column pretending to be a closed set invites the typo and the undocumented member the enum makes impossible.
+- **Behaviour belongs to the set:** the enum carries its own methods — `ApiCode::http()` (case → status map + a `fromHttp` reverse), `Role::rank()/outranks()`, `OrderStatus::isFinished()/isOpen()`, `CatalogType::capabilities()/subtypes()` — each an exhaustive `match ( $this )`. A `switch` over enum values sitting in a service is behaviour that escaped its type.
+- **Enums are the data of the capability law at the bounded altitude:** a fork-per-client product's type enum DECLARES its capability list (`capabilities(): array` per case) and business code only ever asks `has(capability)`; the open-platform variant moves the same table to DB lookup rows. Same law, two altitudes — code never branches on the case literal either way, and moving from enum to rows later is a data migration, not a rewrite.
+- **One source of truth, everything derives:** migration enum columns are `array_column(Enum::cases(), 'value')`, validation rules are `Rule::enum`, the live contract endpoint renders from `cases()` — a DB set, a rules list, and a docs page maintained in parallel WILL drift; derived ones cannot.
+- **Boundaries speak `tryFrom`, fail-closed:** input → `tryFrom` → `null` is a validation refusal, never a default case that guesses. Inside the boundary, signatures take the enum type, not `string` — the coercion happened exactly once, at the edge.
+- **Cast on the model, compare with intent:** enums land via `casts()` and domain code compares cases (`===`, strict `in_array`); guards that must read STORED truth (state-machine transitions, raw SQL) reach for `getRawOriginal` deliberately — mixing cast and raw comparisons is the classic silent-false bug.
+- **Subset logic lives ON the enum:** `verifiable(): array`, `filterable($context)`, `subtypeFits()` — a hand-typed subset array at a call site re-implements membership the enum owns and misses the next added case.
+- **Message/code catalogs are enums too:** one machine-key enum (api codes ↔ HTTP map) + one human-message catalog (localization keys in disguise) — every response and thrown business error speaks cases; adding a failure class means adding a case the type system then tracks to every consumer.
+- **Shared shapes go through interfaces:** enums implement interfaces and use traits — the exception translator consumes "has an HTTP code", not a hardcoded list of enum classes.
+- Exhaustive `match` without `default` is the upgrade alarm: a new case breaks every decision that must now decide — that is the feature; a `default` arm on a closed decision silences it.

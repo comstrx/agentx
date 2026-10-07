@@ -1,0 +1,12 @@
+# Playbook
+
+The recurring SaaS business systems and how each one goes wrong.
+
+- **Plans are features + limits, gated by capability:** a plan declares feature flags and quotas; access checks ask `tenant.hasFeature(x)` through one gate — `if plan == 'premium'` scattered in code is the type-literal rot wearing a billing costume. Limits feed per-plan throttling; gates enforce server-side always, the client's plan claim is decoration.
+- **Money follows the ledger law absolutely:** integer minor units, double-entry rows, derived balances, locks around every read-modify-write, idempotency keys on every money endpoint — a marketplace double-spending a wallet under concurrency is the incident that ends trust. Vendor splits, commissions, and payouts are ledger topology, not arithmetic in a service.
+- **Every lifecycle is an explicit state machine:** orders, bookings, subscriptions, payouts, applications — named states, guarded transitions through ONE method, an event per transition, illegal moves failing loud. A `status` column mutated by hand from three services is a corruption generator.
+- **Idempotency as a platform capability:** one middleware/utility — key from `tenant + actor + endpoint + client key`, lock, replay the recorded response on repeat — mandatory on financial and side-effectful writes; retries become safe no-ops everywhere at once.
+- **Subscription mechanics honestly:** trial → active → past-due → suspended → cancelled as a state machine; dunning as scheduled jobs with bounded retries; proration as ledger entries with recorded math; a grace window is a declared state, not a hack in the auth check.
+- **Multi-vendor scope rides tenancy's rails:** `vendor_id` scopes within the tenant exactly as `tenant_id` scopes within the platform — same fail-closed scoping, same composite uniques, same "who can see what" derived from capability, never from role literals.
+- **The roles ladder is data:** super/supervisor/member tiers live in the roles/permissions tables — code branches on `can(x)`, never on `is_super`/`is_supervisor` booleans; the super's cross-tenant reach is the audited exception, not a code path privilege.
+- **Hunt these:** floats near money · balance UPDATE without a lock · a webhook or endpoint that double-applies on redelivery · status mutated outside its machine · a feature gate trusted from the client · a financial row missing its scope · heavy work (mail, media, provider calls) inline in a request.

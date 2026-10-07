@@ -1,0 +1,12 @@
+# Data
+
+The canonical schema decisions specific to this core — the law above the general database standards.
+
+- **Identity:** `users` unique by `(email, tenant_id)` — the same email registers independently per tenant; the same rule for any unique human identifier. `roles` = role kind + `is_super`/`is_supervisor` flags as DATA the permission engine reads (code never branches on them); `user_roles` pivot unique per `(tenant_id, user_id, role_id)`.
+- **The permission cascade — one uniform table for every level:** `permissions` is the platform-owned CATALOG (vocabulary only: key, group, label — no allow/deny). `permission_settings` holds the cascade: each row sets `allow` + `locked` at a scope — `global` (platform defaults, tenant_id NULL, authority super) → `tenant` → `entity` (a role or resource type) → `item` (a record, optionally a specific actor). Resolution walks specific → general; **authority rules:** a `super` row with `locked=true` is FINAL — the tenant's panel shows it faded; unlocked rows the tenant may override. The CRUD quartet (`view_/add_/edit_/delete_<resource>`) derives from resource names; only cross-cutting flags are hand-declared.
+- **The catalog:** one `items` family — `type` + `subtype` (app enums over a type lookup), `category_id`, self-parent for hierarchies (hotel → rooms), shared columns + richest-target columns + GIN-indexed JSON `attributes` for single-type residue. Satellites: prices (+ item_prices pivot, seasons/tiers/currencies), availabilities, policies, features, media.
+- **Locations are a closure table** (ancestor, descendant, depth) — shared geography rows carry NULL tenant (referenced by all), tenant-owned places carry their tenant; the NULL-distinct unique hole is closed explicitly.
+- **Domains/zones:** `domains` are tenant-owned assets with verification + TLS state driving resolution; `zones` are platform infrastructure (provider-level, unscoped by design).
+- **Money:** wallet accounts + double-entry `ledger_entries` (balanced per transaction, reference-linked); balances derived; commissions/splits/payouts are entries, never arithmetic columns. Idempotency keys stored per money endpoint.
+- **Platform-level tables — the complete deliberate exceptions to tenant scoping:** tenants, platform users + their roles, the permissions catalog, global permission_settings rows, zones, shared locations. Everything else carries a non-null `tenant_id` and is RLS-forced.
+- Every table: UUIDv7 string PK, UTC timestamps, scope-led composite indexes — the general database law applies beneath all of this.

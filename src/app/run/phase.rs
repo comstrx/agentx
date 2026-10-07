@@ -172,6 +172,7 @@ impl Orchestrator {
             }
 
             Ui::arrow(1, &format!("audit raised {} remediation task(s) — handing them to the executors", pending.len()));
+            Ui::blank();
 
             for task in &pending { self.journey.task_status.remove(&Path::name_of(task)); }
 

@@ -1,0 +1,13 @@
+# Discipline
+
+Keeping the three roles thin in practice — the daily moves that stop MVC from rotting.
+
+- **The five-line audit on every action:** parse/validate handled by the request unit, one call into the layer beneath, one shaped return. Anything else in the action is triaged: a query chain → a named scope/repository call; a decision → the service; response assembly → the resource/view-model; a repeated pre-check → middleware.
+- **The controller diet, in extraction order:** (1) validation moves to a dedicated request unit at the boundary; (2) query building moves to scopes/repositories; (3) business decisions move to a service method named as the use case; (4) response shaping moves to a resource. After the diet, what remains IS the controller — translation only.
+- **Fat-model triage:** behaviour that belongs to the entity itself (casts, relations, its own invariants) stays; orchestration across entities moves to a service; reusable mechanics (search, files, state) extract into capability traits/mixins; query vocabulary extracts into named scopes. "Fat model" is a placement backlog, not a lifestyle.
+- **A view-model/resource per surface, derived not duplicated:** the API's shape, the panel's shape, and the export's shape are separate thin presenters over one domain shape — adding a field is one domain change plus the presenters that expose it, never a parallel model per screen.
+- **Middleware absorbs the repeated preamble:** auth, context, locale, throttling, permission gates — the moment two actions repeat a pre-check, it becomes a declared middleware on the route group; an action re-checking what middleware guaranteed is boundary distrust.
+- **The route table is the surface's table of contents:** grouped per actor/prefix, named consistently, handlers as references (cache-safe) — a stranger reads the route files and knows the whole surface. Route registration logic (loops, reflection, conditionals) is a smell; routes are declarations.
+- **Views stay dumb by starvation:** hand the template everything pre-computed (formatted dates, resolved names, decided visibilities) — a view that receives raw models will eventually query; a view that receives a finished view-model cannot.
+- **Test shape enforces the discipline:** controllers get thin contract tests (status, envelope, gate refusals); decisions get unit tests on the service beneath; a controller test needing heavy business fixtures is business logic sitting too high, revealed by its own test pain.
+- The rot indicators to hunt in review: an action past ~ten lines · a model method orchestrating other entities · a template with a query or a business conditional · the same pre-check in two actions · a second response shape hand-built inline.

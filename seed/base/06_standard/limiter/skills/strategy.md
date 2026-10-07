@@ -1,0 +1,15 @@
+# Strategy
+
+Implementing limits that hold under concurrency, distribution, and clock skew.
+
+- **The check is one atomic operation, always:** counter + expiry + verdict computed in a single store-side script/transaction — a read-then-write limiter double-admits under concurrency by construction. Every algorithm below is one atomic unit or it is theater.
+- **Sliding window as the default fairness algorithm:** either windowed counters (current + previous window weighted by overlap — two keys, O(1), approximate but honest) or a sorted-set of timestamps (exact, heavier) — fixed windows alone invite the double-burst at the boundary minute.
+- **Token bucket where bursts are legitimate:** state = `(tokens, last_refill)` in one key; on attempt, refill by elapsed × rate (capped), then spend — all in the atomic script. Burst capacity and refill rate are two independent product knobs; conflating them is why "10/min" feels wrong for interactive traffic.
+- **Concurrency caps for the expensive:** a semaphore-shaped counter incremented on entry, decremented on completion AND on timeout/disconnect — a leaked slot is a creeping deadlock; every acquisition carries a TTL as the self-healing floor. Exports, media processing, provider calls: capped by slots, not by rate.
+- **Cost-weighted spending:** endpoints declare their cost (a list = 1, an export = 25, an AI call = its token bill) and spend that many units from the same budget — counting a report as one request is how a "fair" limit starves the cheap traffic.
+- **Store discipline:** every limiter key carries a TTL beyond its window (self-cleaning, no immortal counters); keys build through the one scoped builder (tenant/actor/class); the hot path is one round-trip — a limiter adding three network hops taxes every request to guard a few.
+- **Clock honesty:** store-side time (the script's clock) decides — never application-server clocks that skew across replicas; `Retry-After` and remaining/reset headers compute from the SAME store state the verdict used, never estimated app-side.
+- **Layered verdicts, cheap first:** global actor ceiling → endpoint-class budget → security throttles (auth, OTP, reset) — evaluated in cost order, short-circuiting on refusal; security throttles keep separate keys and fail closed even when fairness limits fail open.
+- **Degradation under store outage is a declared decision per class:** fairness limits fail open with a loud log and a metric; abuse/security limits fail closed — availability for customers, never for attackers; the decision lives in the limiter's config, not in a catch block.
+- **Test with an injected clock:** time-travel tests prove window sliding, refill math, and TTL healing; a concurrency test fires N parallel attempts at limit N and asserts exactly N admissions — off-by-the-race is the limiter's classic bug, and only this test catches it.
+- Watch the limits like a product: admission/refusal rates per class, top-throttled actors, store latency on the hot path — a limit tripping constantly is an attack or a mispriced plan, and the dashboard says which before support does.

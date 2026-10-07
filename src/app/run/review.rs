@@ -11,7 +11,7 @@ impl Orchestrator {
 
     pub(super) fn manager_review ( &mut self, phase: &str, task: Option<&StdPath>, round: u32, gate_ok: bool ) -> Flow<String> {
 
-        let depth = if task.is_some() { 2 } else { 1 };
+        let depth = if task.is_some() { 3 } else { 2 };
 
         self.archive_review(phase)?;
 

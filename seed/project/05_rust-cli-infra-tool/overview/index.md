@@ -1,0 +1,9 @@
+# Index
+
+- **What this is:** a single-binary Rust command-line tool in the house style — one crate that is a library first and an executable second, the `toolx` family's shape: strict layers, zero panics, a terminal experience that feels engineered.
+- **The anatomy:** `core` (the private std-lib: fs, str, term, proc, parse — pure capabilities) → `config` (consts, schema, the tool's contract) → `app` (commands as thin orchestrations) → `main` (a shell that parses and dispatches). Module = folder with `arch.rs`/`mod.rs`/concern-split impls; `pub(crate)` default; every literal in the consts module.
+- **The command grammar:** subcommands as verbs (`init · start · status · doctor · sync`), every option with a long form, `-C` for working directory, `-y` for headless consent, `--show` variants pipe-pure — the CLI surface reads like a well-designed API because it is one.
+- **The behavioural spine, inherited and enforced:** stdout = product / stderr = narration · exit codes stable API · the interactivity law (menus only on a real TTY; headless names the missing flag; Escape = the default; destructive asks or demands `-y`) · capability-aware rendering (icons/colors/screen-control degrade independently) · atomic state writes + stale-lock takeover · process groups so children never orphan.
+- **Runtime state lives in one dotdir**, scaffolded by `init` (idempotent, never overwrites), inspectable by `status`, verified by `doctor` — a user can always ask the tool what it thinks is true.
+- **Quality bar:** clippy `-D warnings` all targets + external integration tests over the public surface + release profile tuned (LTO, stripped) — a small binary that starts instantly and cleans up after itself on every exit path, including the violent ones.
+- **What "done" means here:** the feature works as a library call, as a TTY command, and piped in CI — three consumers, one behaviour, gate green.

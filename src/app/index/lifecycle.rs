@@ -86,6 +86,8 @@ impl App {
 
             if do_clear { Project::clear(&paths); }
 
+            Ui::blank();
+
             if do_train && unbound {
 
                 Ui::warn(&format!("run NOT recorded — no inspiration is bound; {CACHE_DIR} kept so the reports survive"));

@@ -1,0 +1,10 @@
+# Schema
+
+- **Time-ordered unique ids (UUIDv7-shaped) as primary keys**, `string` in every signature — sortable by creation, safe across shards/merges, never leaking row counts like sequences do. FKs `<singular>_id`; tables plural snake_case; pivots alphabetical singular pair unless a domain name is clearer.
+- **Every scope-owned table carries its scope column** (`tenant_id` or the domain's equivalent), indexed, FK'd; **every business unique includes the scope** — `unique(email, tenant_id)`, never the naked value; hot indexes lead with the scope column.
+- **Constraints are the last line of defense and always present:** NOT NULL by default (nullable is a decision), FKs enforced, CHECKs for closed ranges, uniques for every business identity — application guards catch first, the schema catches what code forgets. Mind the NULL-distinct trap in unique indexes on nullable scope columns: close it with `NULLS NOT DISTINCT` or partial uniques.
+- **Migrations: reversible, additive-first, central.** Expand → backfill → switch reads → contract; no destructive drop in the same release as code that still reads the column; every migration runs against production-sized data in the head before it meets production.
+- **Money is integer minor units, never floats; time is UTC (`timestamptz`); closed sets are enums** at the application layer with a CHECK or lookup beneath. Soft-delete where the domain requires history, not by default.
+- **Row-level security as defense-in-depth where the platform offers it:** transaction-local settings (never session-level), the app connecting as a non-owner role, forced policies on scope-owned tables — the application scope remains primary; RLS catches the forgotten query.
+- **JSON columns are for genuinely open shapes only** — attributes that vary by capability. A JSON column whose keys every query touches is a table dodging a migration; promote hot keys to real columns with indexes.
+- Naming is the API of the schema: no abbreviations needing a glossary, one term per concept everywhere, status/state columns matching the code's enum exactly.

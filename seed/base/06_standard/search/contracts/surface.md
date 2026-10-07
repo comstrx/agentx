@@ -1,0 +1,10 @@
+# Surface
+
+- **Search is a bounded, whitelisted surface — never an open query door.** Searchable fields, filterable columns, and sortable keys are declared per resource; anything undeclared is rejected, never passed through to the engine or the database. The query language exposed to clients is the project's own bounded DSL, not the backend's.
+- **Behind one facade with a swappable driver:** database full-text is the first driver; a dedicated engine (Elasticsearch-shaped) is a driver swap when measurement demands it — business code speaks `Search::query(...)`, never a client SDK.
+- **Scope is baked into every query:** tenant/actor scope applied by the engine layer at query build, exactly like the ORM's global scope — a search result crossing tenants is a security incident, not a relevance bug. Permission-gated fields never index into a shared searchable blob.
+- **The index is a projection, not a truth:** built from the source of truth, rebuildable from scratch by one command, updated through the write path's events — a drifted index is repaired by resync, never hand-edited.
+- **Indexing is async:** writes commit locally and queue the index update (idempotent, keyed by entity id + version) — search lag of seconds is declared and tolerated; the request path never waits on the engine, and an engine outage degrades search, never writes.
+- **Results carry identity, the source serves the rows:** the index returns ids + ranking; hydration happens against the primary store through the normal scoped read path — duplicated full documents in the index are a staleness surface to justify, not a default.
+- **Relevance is configuration, versioned:** analyzers, boosts, synonyms live in code/config with the schema — a relevance tweak is a reviewed change with before/after queries, not a console experiment that nobody can reproduce.
+- Input hygiene at the boundary: length caps, token sanitization, no user-supplied wildcards/regex against the engine — a search box is an injection surface like any other.

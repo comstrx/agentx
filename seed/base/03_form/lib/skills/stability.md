@@ -1,0 +1,14 @@
+# Stability
+
+Being a dependency worth depending on — the discipline after the API is designed.
+
+- **Semver enforced against observable behavior, not intent:** anything a consumer can observe and depend on — error variants, default values, iteration order you documented, timing you promised — is the contract; "we didn't mean that to be public" is a major bump wearing an excuse. When in doubt, it is breaking.
+- **The deprecation lane is a promise with dates:** deprecate with a working replacement + a compiler/runtime warning naming it → keep both through a full minor cycle → remove on the next major with the migration in the changelog. Deprecating without a replacement is just breaking slowly.
+- **The changelog is written for the upgrader at 2 AM:** per release — breaking (with before/after snippets), added, fixed; a consumer must be able to upgrade from the changelog ALONE, without diffing source. Generated commit lists are logs, not changelogs.
+- **Platform floors are declared and CI-enforced:** minimum language version (MSRV/engines/python_requires) stated in the manifest, tested in CI at exactly that floor, and RAISED only in a minor with a changelog entry — a floor that silently jumps is a breaking change for everyone pinned beneath it.
+- **The dependency tree is part of the API:** a lib's deps become every consumer's deps — each one minimal, boring, and justified; heavy/optional capability behind feature flags (extras) so the core stays light; a lib dragging a framework is a framework with a lib's name.
+- **Test the public surface like a consumer:** the suite imports the lib exactly as users do (external tests, no private reaching) — plus doc examples that compile/run as tests; if the suite needs internals, either the surface is missing something or the test is testing nothing.
+- **Version the data, not just the code:** anything serialized that survives versions (config files, cache formats, wire shapes) carries a version marker and a read-old-write-new path — a lib that corrupts its own v1 files on v2 load breaks users no semver scanner will catch.
+- **Yank/patch discipline for the bad day:** a broken release is yanked/deprecated immediately with a patched successor — never left live "because the fix is coming"; security fixes backport to the still-supported majors, and the support window is written down.
+- **Consumers are telemetry, by consent only:** issue templates that capture version + platform, reproduction over prose — and never analytics baked into a library; a lib that phones home is malware with documentation.
+- The maintainer's honesty file: SUPPORT/README states what is stable, what is experimental (feature-flagged, may break in minors — say so), and what will never be supported — managed expectations are half of perceived stability.

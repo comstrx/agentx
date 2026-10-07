@@ -98,6 +98,7 @@ impl Orchestrator {
 
         }
 
+        Ui::blank();
         Ui::arrow(depth, &format!("running gate · {}", self.cfg.gate.command));
 
         let started = Instant::now();

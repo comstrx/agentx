@@ -1,0 +1,14 @@
+# Operations
+
+Running FastAPI in production — lifecycle, workers, and the honesty of an event loop under load.
+
+- **Lifespan owns every resource:** pools, HTTP clients, brokers created in the lifespan startup, closed in shutdown, reached through dependencies — module-level clients created at import are un-closeable and un-overridable; a resource without a shutdown path leaks connections on every deploy.
+- **Typed settings, validated at boot:** one settings model (env-driven, secrets from the environment) constructed once at startup — a missing/invalid variable fails the boot with a named error, never a `KeyError` at request forty. `os.getenv` scattered through modules is configuration archaeology.
+- **The worker model, honestly:** async concurrency handles the IO-bound thousands inside each worker; worker count covers CPU headroom and isolation — size by measurement, not folklore. CPU-heavy endpoints (reports, media, crypto) offload to process pools or the real queue; one hot loop stalls every request in that worker.
+- **Blocking is the outage shape:** a sync driver, a sleepy SDK call, a giant serialization inside `async def` freezes the loop for everyone — audit with loop-lag metrics; quarantine unavoidable sync work in `def` endpoints (thread-pooled) or `run_in_executor`. The loop's health IS the service's latency.
+- **Graceful shutdown as a contract:** stop accepting, drain in-flight requests within the platform's grace window, close pools in lifespan — deploys must be invisible; work that cannot finish in the window belongs to the queue, not the request.
+- **Health split honestly:** liveness = the process and loop respond; readiness = dependencies acquired (a pooled connection ping, broker reachable) — readiness failing pulls the instance from traffic without killing in-flight work; the two endpoints are cheap, unauthenticated, and never touch business code.
+- **Observability wired as middleware + dependencies:** correlation id born at the edge, request timing and status metrics per route template (not per raw path), structured logs through one facade, traces across outbound calls — the RED dashboard per router is the operating view; print-debugging has no production story.
+- **Migrations run beside the app, never inside it:** schema changes are a deploy step with locks and timeouts considered — an app instance racing its replicas to migrate at startup is a distributed footgun.
+- **One artifact, environment-shaped:** the same image across envs, behaviour from settings; OpenAPI docs exposure, debug toggles, and CORS are environment decisions declared in config — never `if env == "prod"` sprinkled in code.
+- Load-test the async claims: concurrency ceilings, pool exhaustion behaviour, p95 under a slow-dependency injection — an async service that has never met a stalled upstream in staging will meet it first in production.

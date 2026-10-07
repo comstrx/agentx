@@ -1,0 +1,14 @@
+# Delivery
+
+Getting mail into inboxes, provably — deliverability and template craft as engineering.
+
+- **Domain authentication is the entry fee:** SPF, DKIM, and DMARC aligned on the sending domain before the first campaign — configured per tenant where tenants send as themselves, verified programmatically at domain-setup time through the provider's API, surfaced in the panel as a checklist the tenant can pass.
+- **Split identities by mail class:** transactional and bulk send from separate subdomains (and ideally separate provider streams) — a marketing blast's reputation dip must never delay a password reset; the split is infrastructure, not a template choice.
+- **Warm up new senders:** fresh domains/IPs ramp volume gradually on a schedule; reputation is a bank account — deposits are slow, withdrawals are instant. Monitor the provider's reputation/deliverability dashboards as production metrics, not curiosities.
+- **Bounce topology, enforced structurally:** hard bounce → suppress immediately; soft bounce → bounded retry window, then suppress; complaint → suppress + review what earned it. Provider webhooks feed the suppression ledger; every send checks it first — the check lives in the mail facade, not in caller discipline.
+- **Templates are a typed system:** one layout family + named content templates with declared variable shapes — a missing variable fails in dev, not as `Hello {name}` in production. Plain-text alternative always generated; previewable and snapshot-tested without sending.
+- **Localization is first-class:** templates resolve by recipient locale with an explicit fallback chain; RTL locales get mirrored layout, not translated-text-in-LTR-frame; dates, numbers, and money format per locale through the same formatting utilities as the product — a mail is product surface, same bar.
+- **The send pipeline in order:** resolve tenant identity → resolve template + locale → render (typed variables) → suppression check → idempotency guard (message key = event id + recipient) → queued dispatch with backoff → provider webhook updates the delivery trail. Every arrow is observable; support reads the trail, never guesses.
+- **List hygiene is compliance and reputation both:** double opt-in where the domain demands it, one-click unsubscribe honored structurally (list-unsubscribe headers), segment pruning of the long-dead — mailing the disengaged is paying reputation for nothing.
+- **Test without casualties:** non-production routes to a trap always; seed-list runs check inbox placement and rendering across major clients before volume sends; a deliberate bounce/complaint drill proves the suppression machinery before reality does.
+- Watch the funnel as numbers: delivered, bounced, complained, opened (where tracked) per class and per tenant — a tenant whose complaint rate spikes is throttled by policy before the provider throttles the platform.

@@ -1,0 +1,14 @@
+# Distribution
+
+Shipping a CLI people install, trust, and forget — packaging as product engineering.
+
+- **One static binary per target is the gold standard:** no runtime to install, no dynamic-lib roulette — the target matrix chosen deliberately (the platforms users actually run: linux x86_64/musl + arm64, mac arm64 + x86_64) and built in CI, never on a laptop. Interpreted-language CLIs earn the same feel via single-file bundles or lockfile-pinned installs — "works on my machine" is not a distribution.
+- **Startup cost is a distribution feature:** `--help` and `--version` answer instantly (defer every heavy import/init past argument parsing) — the first impression of quality is the first 50 milliseconds.
+- **Completions and man pages are generated artifacts:** derived from the argument definitions in the build (bash/zsh/fish completions, a man page), shipped with the release, installed by the package — hand-maintained completions drift by the second release; generated ones are free forever.
+- **`--version` tells the whole truth:** semantic version + commit + build date — the triple that turns "some old build" bug reports into diagnosable ones; version output is pipe-clean (one line, stdout).
+- **Self-update is a decision, not a default:** package-manager-installed tools NEVER self-update (the manager owns the binary); a curl-installed tool may offer an explicit `self-update` command — atomic (download → verify checksum/signature → rename-swap), never automatic, never phoning home without being asked. Update CHECKS are opt-in and cache their answer.
+- **Exit-code stability is release discipline:** the documented codes are API — a script broken by a code reshuffle is a breaking change shipped silently; new failure classes get NEW codes, existing ones never move.
+- **Breaking a flag follows a deprecation lane:** old flag keeps working + warns on stderr for a full minor cycle, the changelog names the migration, the error after removal names the replacement — a CLI's flags are function signatures with users you cannot see.
+- **The install story is tested in CI:** the release pipeline installs the artifact on a clean image per target and runs the smoke suite through the INSTALLED binary — packaging bugs (missing completions, wrong perms, dyld surprises) are found by the pipeline, not by the first user.
+- **Checksums and signatures ship with every release:** SUMS file + signature beside the artifacts; the install script verifies before it moves anything executable into PATH — supply-chain hygiene is table stakes for a tool asking for shell access.
+- Respect the machine it lands on: config in the platform's conventional home, cache/state in one named dotdir the README admits to, `uninstall` (or docs) that removes everything — a tool that scatters files it never cleans is a bad guest.

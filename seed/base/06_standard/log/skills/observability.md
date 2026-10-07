@@ -1,0 +1,14 @@
+# Observability
+
+Turning the log discipline into a system a stranger can debug at 3 AM.
+
+- **Three signals, one story:** logs say what happened, metrics say how often/how slow, traces say what caused what — all three keyed by the same correlation id born once at the edge. An incident is walked dashboard → trace → logs; a system offering only logs offers archaeology.
+- **Context propagation is machinery, not discipline:** the edge middleware births the correlation id and stamps actor/tenant into the request context; the logging facade reads context automatically on every line; dispatch stamps it into jobs/events; job start restores it. No call site ever passes ids by hand — hand-passed context is the context that goes missing.
+- **RED on every surface:** rate, errors, duration (p50/p95/p99) per endpoint template, per job class, per consumer, per provider port — labeled by class, never by unbounded values (raw paths, ids, tenants beyond a cap); a cardinality explosion is a self-inflicted observability outage.
+- **The 3 AM test writes the error line:** operation, the ids involved, what was expected vs found, and the next move (retryable? which sweeper owns it? which runbook?) — an error a stranger cannot act on is noise with a stack trace. One failure logs ONCE, at the layer that decided, with the whole causal chain.
+- **Alert on symptoms, not causes:** user-facing error rate, p95 breach, queue depth growth, DLQ arrivals, webhook silence — each alert actionable and owned; alerting on internal guesses (CPU, a single retry) trains the team to ignore the pager. Every alert that fires without action is tuned or deleted that week.
+- **Dashboards are products with one reader in mind:** per subsystem — the four RED panels, the saturation gauges (pools, queues, loop lag), the domain's own truth (payments succeeding, bookings confirming) — readable without tribal knowledge; a dashboard needing its author present is documentation debt.
+- **Sample the noise, never the signal:** high-volume happy-path logs head-sample; errors, warnings, slow outliers, and money movements keep 100% — cost pressure trims chatter, never evidence.
+- **Traces earn their keep at the seams:** spans around every outbound call (db, cache, provider, queue) with duration + outcome — the cross-service N+1, the serial fan-out that should be parallel, and the 800ms mystery all show up as span shapes before anyone reads code.
+- **The debugging flow is a habit:** symptom → dashboard (which surface, since when) → exemplar trace (where the time/failure lives) → logs by correlation id (the story) → code (the fix) — jumping straight to code is how a one-hour incident becomes an evening.
+- Field truth outranks lab truth: real-user latency, real error rates, real queue depths decide priorities — a profiler session explains a number the field already reported; it never replaces the field.
